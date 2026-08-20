@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------
+# Unreal Engine — generated / regenerable. Never commit these.
+# ---------------------------------------------------------------
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Plugin build output (source IS tracked, output is not)
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# ---------------------------------------------------------------
+# Third-party marketplace / sample content.
+# Re-downloadable from the Epic Launcher, and redistributing paid
+# marketplace assets in a public repo breaks their licence.
+# Re-install these locally after cloning.
+# ---------------------------------------------------------------
+Content/StarterContent/
+Content/UltraDynamicSky/
+
+# ---------------------------------------------------------------
+# Visual Studio / Rider
+# ---------------------------------------------------------------
+.vs/
+.idea/
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.xcodeproj
+*.xcworkspace
+
+# ---------------------------------------------------------------
+# Local backups (created during the MCP plugin install)
+# ---------------------------------------------------------------
+*.bak_before_mcp
+*.bak_before_unreal
+
+# ---------------------------------------------------------------
+# Python bytecode cache (regenerated on import)
+# ---------------------------------------------------------------
+__pycache__/
+*.pyc
+
+# ---------------------------------------------------------------
+# OS noise
+# ---------------------------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
