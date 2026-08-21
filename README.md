@@ -6,7 +6,7 @@ blockout, master materials, a Python asset-manifest tool, curved-surface PCG bui
 placement, an Editor Utility Widget for scene control, and World Partition / HLOD
 optimization.
 
-<!-- ![interior view](docs/images/interior.png) -->
+![exterior view](docs/images/exterior.png)
 
 ## Status: Week 1 — blockout
 
