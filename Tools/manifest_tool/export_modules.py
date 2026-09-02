@@ -102,7 +102,8 @@ def read_rows(xlsx_path, sheet_name):
         rows.append(module)
         module["_row"] = row_num
 
-    print(len(rows))
+    # CLAUDE FIX 1: deleted "print(len(rows))" here. It was debug output from
+    # when we were building this function - it printed a bare "37" on every run.
     return rows
 
 # ---------------------------------------------------------------------------
@@ -134,17 +135,34 @@ def check_names(rows):
             errors.append(f"row {module['_row']}: Name is empty")
             continue
 
+        # CLAUDE FIX 3: guard against a Name that is not text.
+        # Excel stores a cell typed as 001 as a NUMBER, not a string. When that
+        # happened, name.split("_") below threw AttributeError and the whole
+        # tool died. A validator must never crash on bad data - that is the one
+        # job it has. "continue" skips the rest of the checks for this row,
+        # because they all assume name is text.
+        if isinstance(name, str) == False:
+            errors.append(f"row {module['_row']}: Name '{name}' must be text, not a number")
+            continue
+
+        # CLAUDE FIX 2: added the offending value to the message. Every other
+        # check names the bad value; this one used to just say "duplicate name",
+        # which meant opening Excel to find out which one.
         if name in seen_names:
-            errors.append(f"row {module['_row']}: duplicate name")
+            errors.append(f"row {module['_row']}: duplicate name '{name}'")
         else:
             seen_names.append(name)
 
-        parts = name.split("_")          
+        parts = name.split("_")
 
+        # CLAUDE FIX 2 (cont.): these two used to both say "bad format", but they
+        # catch different mistakes. Split the wording so the message says which.
+        #   len(parts) != 2   -> "BLD001" (no underscore) or "BLD_A_001" (too many)
+        #   not isdigit()     -> "BLD_00A" (underscore fine, suffix is not digits)
         if len(parts) != 2:
-            errors.append(f"row {module['_row']}: bad format")
+            errors.append(f"row {module['_row']}: name '{name}' must be PREFIX_NNN, e.g. BLD_001")
         elif parts[1].isdigit() == False:
-            errors.append(f"row {module['_row']}: bad format")
+            errors.append(f"row {module['_row']}: name '{name}' must end in digits, e.g. BLD_001")
 
     return errors
 
@@ -249,13 +267,13 @@ def check_mesh_paths(rows):
     """
 
     errors = []
-    warning = []
+    warnings = []
 
     for module in rows:
         mesh = module["Mesh"]
 
         if not mesh:
-            warning.append(f"row {module['_row']}: Mesh '{mesh}' not build yet")
+            warnings.append(f"row {module['_row']}: Mesh '{mesh}' not build yet")
             continue
 
         if isinstance(mesh, str) == False:
@@ -263,38 +281,54 @@ def check_mesh_paths(rows):
         elif not mesh.startswith("/Game/"):
             errors.append(f"row {module['_row']}: Mesh '{mesh}' must be a UE path")
 
-    return errors, warning 
+    return errors, warnings
 
 
+def validate(rows):
+    """
+    Run every check, collect all errors and warnings.
+
+    Do NOT stop at the first error - report everything at once so the user
+    fixes the sheet in one pass instead of re-running ten times.
+
+    Return (errors, warnings).
+    """
+
+    # CLAUDE FIX 4: renamed "warning" -> "warnings". The list holds many
+    # messages, so a plural name reads correctly everywhere it is used.
+    errors = []
+    warnings = []
+
+    errors = errors + check_names(rows)
+    errors = errors + check_enums(rows)
+    errors = errors + check_zone_rules(rows)
+    errors = errors + check_numbers(rows)
+
+    mesh_error, mesh_warnings = check_mesh_paths(rows)
+    errors = errors + mesh_error
+    warnings = warnings + mesh_warnings
 
 
-
-# def validate(rows):
-#     """
-#     Run every check, collect all errors and warnings.
-
-#     Do NOT stop at the first error - report everything at once so the user
-#     fixes the sheet in one pass instead of re-running ten times.
-
-#     Return (errors, warnings).
-#     """
-#     # TODO
-#     raise NotImplementedError
+    return errors, warnings
 
 
 # ---------------------------------------------------------------------------
 # Writing
 # ---------------------------------------------------------------------------
 
-# def write_csv(rows, out_path):
-#     """
-#     Write CSV_COLUMNS in order, 'Name' first.
+def write_csv(rows, out_path):
+    """
+    Write CSV_COLUMNS in order, 'Name' first.
 
-#     Only called when there are zero errors. Warnings do not block the write.
-#     """
-#     # TODO
-#     raise NotImplementedError
+    Only called when there are zero errors. Warnings do not block the write.
+    """
+    # 3. Open file and write data
+    with open(out_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=CSV_COLUMNS, extrasaction="ignore")
 
+        writer.writeheader()  
+        writer.writerows(rows)  
+    
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -313,8 +347,18 @@ def main():
     """
     # TODO
     result = read_rows(XLSX_PATH, SHEET_NAME)
-    print(len(result))
-    print(result[1])
+    errors, warnings = validate(result)
+
+    for w in warnings:
+            print(w)
+    for e in errors:
+            print(e)
+    if errors:
+        sys.exit(1)    
+
+    write_csv(result, OUT_PATH)
+    print(f"wrote {len(result)} rows to {OUT_PATH}")
+
 
 if __name__ == "__main__":
     main()
