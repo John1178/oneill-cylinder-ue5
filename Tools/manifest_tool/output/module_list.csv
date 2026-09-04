@@ -1,10 +1,10 @@
 Name,Category,Zone,Belt,Mesh,Weight,RotationMode,Clearance,Source
-BLD_001,Building,Residential,All,/Game/Meshes/Modules/SM_Residential_Block_Low,1,AlignToRoad,2,Marketplace
+BLD_001,Building,Residential,All,/Game/Meshes/Placeholders/SM_Cube,1,AlignToRoad,2,Marketplace
 BLD_002,Building,Residential,A,/Game/Meshes/Modules/SM_Residential_Block_Mid,0.6,AlignToRoad,2,Marketplace
 BLD_003,Building,Residential,A,/Game/Meshes/Modules/SM_Residential_Terrace,0.4,AlignToRoad,2,Marketplace
-BLD_004,Building,Industrial,All,/Game/Meshes/Modules/SM_Industrial_Warehouse,1,AlignToRoad,2,Marketplace
+BLD_004,Building,Industrial,All,/Game/Meshes/Placeholders/SM_Cube,1,AlignToRoad,2,Marketplace
 BLD_005,Building,Industrial,B,/Game/Meshes/Modules/SM_Industrial_Processing,0.5,AlignToRoad,2,Marketplace
-BLD_006,Building,Service,A,/Game/Meshes/Modules/SM_Service_Shopfront,0.8,AlignToRoad,2,Marketplace
+BLD_006,Building,Service,A,/Game/Meshes/Placeholders/SM_Cube,0.8,AlignToRoad,2,Marketplace
 BLD_007,Building,Service,All,/Game/Meshes/Modules/SM_Service_Utility_Block,0.6,AlignToRoad,2,Marketplace
 STR_001,Structural Shell,-,All,/Game/Meshes/Modules/SM_Hull_Rib_Straight,1,Fixed,0,Model
 STR_002,Structural Shell,-,All,/Game/Meshes/Modules/SM_Hull_Rib_Junction,0.4,Fixed,0,Model
@@ -18,7 +18,7 @@ HAB_003,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Ground_Planted_Grass,0.8,F
 HAB_004,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Ground_Transition,0.6,Fixed,0,Model
 HAB_005,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Pathway_Straight,0.9,Fixed,0,Model
 VEG_001,Greenery & Terrain,-,A,/Game/Meshes/Modules/SM_Tree_Deciduous_Large,0.4,Free,1,Megascans
-VEG_002,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Tree_Deciduous_Small,1,Free,1,Megascans
+VEG_002,Greenery & Terrain,-,All,/Game/Meshes/Placeholders/SM_Cube,1,Free,1,Megascans
 VEG_003,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Tree_Conifer,0.6,Free,1,Megascans
 VEG_004,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Shrub_Cluster,1,Free,1,Megascans
 VEG_005,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_GroundCover_Grass,1,Free,1,Megascans

@@ -6,7 +6,7 @@ with a UI, zone-ratio validation, and a JSON schema. That design was superseded 
 work that was correctly abandoned.
 
 **Friday checkpoint:** UE5 imports the exported CSV as a DataTable, and the validator
-catches a deliberately broken spreadsheet.
+catches a deliberately broken spreadsheet (run standalone - see note below).
 
 ---
 
@@ -67,22 +67,41 @@ Consequences:
 ## Still open
 
 ### UE5 integration — the real remaining gap
-- [ ] Blueprint Struct `S_ModuleRow` — **8 fields**, not 9. `Name` becomes the DataTable row
+- [x] Blueprint Struct `S_ModuleRow` — **8 fields**, not 9. `Name` becomes the DataTable row
       key and is NOT a struct member. Blueprint structs do not need `FTableRowBase`; only
       C++ ones do.
-- [ ] Field types: `Weight` / `Clearance` = Float. Everything except `Mesh` can be **String** —
+- [x] Field types: `Weight` / `Clearance` = Float. Everything except `Mesh` can be **String** —
       the Python validator already guarantees legal values, so enums here would duplicate work.
-- [ ] `Mesh` field type — **String vs Soft Object Reference (Static Mesh)**. Soft ref is
-      correct for PCG and does not require the asset to exist. Untested — verify on import.
-- [ ] Import `module_list.csv` as a DataTable against that struct
+- [x] `Mesh` field type — went with **String**. Imported cleanly. Soft Object Reference is
+      arguably more correct for PCG; revisit if the graph wants it, it is a small change
+      plus a reimport.
+- [x] Import `module_list.csv` as a DataTable against that struct — **37 rows, no warnings**
 - [ ] `import_datatable.py` (~30 min) — points UE at the CSV and reimports, so weight tweaks
       don't mean clicking through the import dialog every time
-- [ ] **CHECKPOINT:** run the validator from inside UE5's Python console against a broken sheet
+- [x] **CHECKPOINT — superseded.** The original checklist said "run the validator inside
+      UE5's Python console". That belonged to the old design where UE loaded a manifest
+      file directly. It does not apply now: **UE never reads the xlsx**, only the CSV, and
+      a CSV needs no third-party library.
+
+      Confirmed 2026-09-04 — running `export_modules.py` via Tools > Execute Python Script
+      fails with `ModuleNotFoundError: openpyxl`, because Unreal's embedded Python has its
+      own site-packages. That is correct behaviour, not a bug.
+
+      Installing openpyxl into the engine is possible but not wanted: it does not survive an
+      engine reinstall or version bump, and every machine cloning the repo would need it.
+      The tool stays standalone; `import_datatable.py` is the only UE-side script, and it
+      needs `import unreal` alone.
+
+      What the checkpoint actually is: **CSV imports as a DataTable with 37 rows and no
+      warnings** (done), and **the validator catches the broken fixture** (done, standalone,
+      13 errors + 1 warning).
 
 ### Test fixtures
-- [ ] Commit the deliberately-broken spreadsheets and the runner into
-      `Tools/manifest_tool/tests/`. They currently exist only in scratch. A tool shipped with
-      fixtures proving it fails correctly reads very differently to a tool alone.
+- [x] `Tools/manifest_tool/tests/module_list_BROKEN.xlsx` — 14 planted faults, one per branch
+      of every validator. Result: **13 errors + 1 warning**, all as expected.
+- [x] `tests/README.md` — table of what is planted where, and why the blank mesh is a
+      warning rather than an error.
+- [ ] `git add` the tests folder (created but not yet committed)
 
 ### Prove the data path before the art exists
 - [ ] Point 3–4 rows at placeholder cubes and get PCG to spawn them.
