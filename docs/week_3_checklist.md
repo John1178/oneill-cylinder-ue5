@@ -1,113 +1,161 @@
-# Week 3 — Python Manifest Tool & Data Pipeline (System 3)
+# Week 3 — Module Data Pipeline (System 3)
 
-Merged week: the original plan split this across Weeks 3 and 4 ("build standalone, then port
-into UE5"). Writing it UE-aware from the start skips the port. See `schedule_revised_10week.md`.
+**Rewritten 2026-09-02.** The original version of this file described a manifest *editor*
+with a UI, zone-ratio validation, and a JSON schema. That design was superseded — see
+"What changed and why" below. Working against the old list would mean feeling behind on
+work that was correctly abandoned.
 
-**Friday checkpoint:** UE5 loads + validates a manifest via the Python console.
-
----
-
-## BLOCKER — must be done first
-
-- [ ] **Lock `module_list.xlsx`**
-      Currently a draft generated from the art guide's category descriptions, not your decisions.
-      The validator checks against real module IDs, so wrong names here become wrong data everywhere
-      downstream (PCG, the EUW, the manifest schema).
-      → Open it, rename/delete/add until the 30 modules are what you actually intend to build.
-      → ~1 hour. Nothing else in Week 3 is safe to start before this.
+**Friday checkpoint:** UE5 imports the exported CSV as a DataTable, and the validator
+catches a deliberately broken spreadsheet.
 
 ---
 
-## Decisions to make before writing code
+## What changed and why
 
-- [ ] **UI framework** — Tkinter (ships with Python, plainer) vs PySide6 (better looking,
-      needs installing; UE5 bundles PySide internally so it's available in-editor)
-- [ ] **Data format** — JSON (nested, natural for zone ratios + module sets) vs
-      CSV (flatter, closer to the existing xlsx)
-- [ ] **Where the tool lives in the repo** — suggest `Tools/manifest_tool/` at project root,
-      so it's separable for the public tools repo later
+Research into Epic's PCG framework moved the layout data out of the manifest entirely:
 
----
+| Data | Old plan | Now |
+|---|---|---|
+| Module catalogue (37 rows, paths, weights) | JSON manifest | **CSV → UE DataTable** |
+| Belt config — road spacing, density, seed, zone ratios | JSON manifest | **PCG component parameters, native** |
+| Layout algorithm | manifest-driven | **PCG graph** |
 
-## Core deliverables (from the scope doc)
+PCG exposes scalars well and they need live iteration, so putting them in a file the artist
+edits offline was the wrong shape. That left the tool with one job: **be the gate between the
+spreadsheet and the engine.**
 
-### Schema
-- [ ] Define the manifest schema — what a belt actually contains
-      - Belt index / name
-      - Segment count or segment length
-      - Zone type ratios (residential / industrial / agriculture)
-      - Module set per zone (references module IDs from the module list)
-      - Seed
-      - Density
-- [ ] Write one real example manifest by hand, so the schema is proven before the tool exists
-
-### The tool
-- [ ] Reads a manifest file
-- [ ] Writes a manifest file
-- [ ] Basic UI — load, edit, save, validate
-- [ ] Runs standalone (outside Unreal)
-
-### Validation — the three the scope doc names explicitly
-- [ ] Flags **missing module references** (manifest names a module ID that doesn't exist)
-- [ ] Flags **zone ratios that don't sum correctly**
-- [ ] Flags **duplicate module IDs**
-
-### UE5 integration
-- [ ] Script runs inside UE5's Python environment
-- [ ] UE5 can load a manifest
-- [ ] UE5 can run validation and report results to the console
-- [ ] **CHECKPOINT:** validator catches a deliberately broken manifest, from inside UE5
+Consequences:
+- No UI. A CLI validator with **exit codes** is the better artefact — it wires into a
+  pre-commit hook or a Perforce change-submit trigger, which a Tkinter window cannot.
+- No zone-ratio or missing-reference checks — that data no longer lives here.
+- CSV over JSON: the data is flat (9 columns, one value each), diffs cleanly one line per
+  module, and opens in Excel. JSON only wins once a field holds a list.
 
 ---
 
-## NOT on the checklist, but needed anyway
+## Done
 
-These aren't in the execution guide's checklist. They're either implied, carried over, or
-things the guide assumes without stating.
+### The tool — `Tools/manifest_tool/export_modules.py`
+- [x] `module_list.xlsx` locked — 37 modules, restructured for DataTable import
+- [x] Reads the spreadsheet (`read_rows`, carries `_row` for error messages)
+- [x] Writes `output/module_list.csv` — `Name` first, 9 columns, human-only columns dropped
+- [x] Runs standalone
+- [x] Refuses to write on any error; `sys.exit(1)` so a build step can block on it
+- [x] Warnings do not block the write (an unbuilt mesh is not an error)
 
-### Carried over from Week 2 (unfinished)
-- [ ] Tune day/night presets — current values are test numbers (magenta emissive, arbitrary opacity)
-- [ ] Place `SM_Hull_Shell_A/B/C` in the level and delete the stale `SC_Refined_SM_Hull_Shell` actor
-- [ ] Delete the orphaned `SC_Refined_SM_Hull_Shell` asset once nothing references it
-- [ ] Decide whether `SM_Greenhouse_Support_01..06` keep `M_Temp` or revert to `MI_Structural_Hull`
+### Validators — five, all tested both directions
+- [x] `check_names` — format `PREFIX_NNN`, uniqueness, empty, non-text
+- [x] `check_enums` — Category / Zone / Belt / RotationMode / Source against the VALID_ lists
+- [x] `check_zone_rules` — Building must have a real zone; non-Building must not
+- [x] `check_numbers` — Weight 0.0–1.0, Clearance ≥ 0, both type-guarded
+- [x] `check_mesh_paths` — `/Game/` prefix, blank = **warning** not error
+- [x] `validate` — runs all five, reports everything at once, never stops at the first error
 
-### Art track (Weeks 1–2, still untouched — runs parallel, needed by Week 3–4 modelling)
+### Proof
+- [x] Broken spreadsheets built and run — every planted fault caught
+- [x] Clean spreadsheet returns zero errors (the control test that matters most)
+- [x] Every message names row number, offending value, and expected format
+
+### Housekeeping
+- [x] `Tools/manifest_tool/` at project root, separable for a public tools repo
+- [x] Branch `feature/python-manifest-tool` in use
+- [x] `__pycache__/` ignored
+- [x] `module_list_README.md` — column meanings, who fills what, what the tool reads
+
+---
+
+## Still open
+
+### UE5 integration — the real remaining gap
+- [ ] Blueprint Struct `S_ModuleRow` — **8 fields**, not 9. `Name` becomes the DataTable row
+      key and is NOT a struct member. Blueprint structs do not need `FTableRowBase`; only
+      C++ ones do.
+- [ ] Field types: `Weight` / `Clearance` = Float. Everything except `Mesh` can be **String** —
+      the Python validator already guarantees legal values, so enums here would duplicate work.
+- [ ] `Mesh` field type — **String vs Soft Object Reference (Static Mesh)**. Soft ref is
+      correct for PCG and does not require the asset to exist. Untested — verify on import.
+- [ ] Import `module_list.csv` as a DataTable against that struct
+- [ ] `import_datatable.py` (~30 min) — points UE at the CSV and reimports, so weight tweaks
+      don't mean clicking through the import dialog every time
+- [ ] **CHECKPOINT:** run the validator from inside UE5's Python console against a broken sheet
+
+### Test fixtures
+- [ ] Commit the deliberately-broken spreadsheets and the runner into
+      `Tools/manifest_tool/tests/`. They currently exist only in scratch. A tool shipped with
+      fixtures proving it fails correctly reads very differently to a tool alone.
+
+### Prove the data path before the art exists
+- [ ] Point 3–4 rows at placeholder cubes and get PCG to spawn them.
+      CSV → DataTable → PCG → something visible. Finding a broken link now, on 4 rows, beats
+      finding it after 37 meshes are built.
+
+---
+
+## Carried over — Week 2, still unfinished
+
+- [ ] Day/night presets still on test values (magenta emissive, arbitrary opacity)
+- [ ] `M_Temp` still on all three `Hull_Shell` meshes and every greenhouse module/support
+      — **confirmed live 2026-09-02.** These are the largest surfaces in the level.
+- [ ] Delete the orphaned `SC_Refined_SM_Hull_Shell` asset if nothing references it
+
+---
+
+## Art track — untouched since Week 1, now blocking
+
+Still ❌, and Weeks 4–6 are the tight ones. Today's lighting session added a hard dependency:
+
+- [ ] **Mesh subdivision** — `Hull_Shell_A` is **2,190 triangles across 13.4 km**; belts are
+      208 triangles each. Facets are visible now that the lighting is correct, and Epic's docs
+      name low-poly-plus-smooth-normals as the cause of the shadow terminator artifacts.
+      Splitting the giant meshes into segments also fixes Lumen surface cache coverage, World
+      Partition streaming and culling — and it is what the modular/PCG plan needs anyway.
 - [ ] Reference board (PureRef) — NASA Ames archive is public domain and exact-subject
-- [ ] Rough silhouettes for the 5 module categories
-- [ ] Material library plan (which categories map to which master, what each parameter does)
+- [ ] Rough silhouettes for the 6 module categories
+- [ ] Material library plan — which categories map to which master, what each parameter does
 - [ ] Station shell reference — hull ribbing, endcap structure, panel breakup
 
-### Implied by the guide but never stated
-- [ ] **Test data** — at least one deliberately broken manifest to prove the validator works.
-      A validator that has never caught anything is not demonstrated.
-- [ ] **README for the tool** — how to run it, what the schema means. This is the artifact a
-      recruiter actually reads; the scope doc wants tool UI screenshots as a deliverable.
-- [ ] **Screenshots of the tool UI** — named in the scope doc's deliverables list, easy to
-      forget until Week 10 when the tool has changed.
-- [ ] **Commit granularly** — the scope doc wants "real, incremental commit history."
-      One commit at the end of the week undercuts that deliverable.
-- [ ] Decide the tool's failure behaviour — does it refuse to save an invalid manifest,
-      or save with warnings? (Affects how the PCG side can trust its input.)
+---
 
-### Pipeline hygiene
-- [ ] Branch for this work: `feature/python-manifest-tool` (already created, unused)
-- [ ] `.gitignore` entry for Python artifacts in the tools folder if not already covered
-      (`__pycache__/` is already ignored)
+## Lighting — resolved 2026-09-02, not originally scheduled
+
+Recorded because it consumed a session and produced reusable rules. See `ue_working_rules.md`.
+
+- [x] Exposure pinned via `PPV_Global`; UDS `Apply Exposure Settings` off so nothing fights
+- [x] Glass hull panels no longer cast shadows — a translucent material still casts a fully
+      opaque shadow in UE, which was blocking all sunlight into the interior
+- [x] Root cause found: `Sun Light Intensity` was **5 lux** against a ~100,000 lux reference
+- [x] Rebalanced: sun 1000 / EV 8.64 / Stars 16000 / Space Layer 40000
+- [x] Sky Light switched from Capture-Based (capturing black space) to `CUSTOM_CUBEMAP`
+
+Open:
+- [ ] Real space cubemap — UDS's `FlatCubemap` is a dark placeholder, so intensity has
+      nothing to multiply. NASA imagery or a free HDRI.
+- [ ] Rect Lights sized to the window strips — the documented way to light an interior from
+      an opening, rather than hoping GI carries the sun through
+- [ ] Volumetric fog — light shafts and depth. **Physically justified here**, unlike most
+      sci-fi: the habitat genuinely has an atmosphere inside it, and atmospheric perspective
+      is what will sell the 13 km scale.
+- [ ] Practical lights (`INF_004` street lamp, `INF_005` overhead strip)
+- [ ] Shadows disappearing at distance — unresolved. Needs
+      `Show > Visualize > Virtual Shadow Map`. Note VSM uses **clipmaps**, not the old
+      cascaded Dynamic Shadow Distance, so that setting is not the mechanism.
 
 ---
 
 ## Explicitly NOT this week
 
-- Toon/NPR shading variant — parked, post-project decision
-- Dim sum game rebuild — parked until after the O'Neill project ships
-- PCG work — that's Week 4
-- Proper UV unwrapping / texel density — Week 6 texture pass
-- Normal maps, real textures — Week 6
+- PCG graph work — Week 4
+- UE asset validator (naming, tri counts, LODs) — Week 8, when assets exist to validate
+- Toon/NPR variant — parked, post-project
+- Proper UVs, texel density, normal maps, real textures — Week 6
+- Convolution bloom kernel — nice-to-have, needs an authored HDR texture
 
 ---
 
 ## Risk
 
-The execution guide flags Week 4 (PCG curved-surface alignment) as the likely overrun, not this
-week. Week 3 should be comfortable — which makes it the right week to also close the art-track
-gap, since Weeks 4–6 will be tighter.
+Original note said Week 4 (PCG curved-surface alignment) is the likely overrun and Week 3
+should be comfortable, making it the right week to close the art gap.
+
+**Week 3 was comfortable and the art gap did not close.** It is now the largest open item, it
+blocks the lighting from looking like anything, and Weeks 4–6 have no slack in them.
