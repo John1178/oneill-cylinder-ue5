@@ -1,0 +1,38 @@
+Name,Category,Zone,Belt,Mesh,Weight,RotationMode,Clearance,Source
+BLD_001,Building,Residential,All,/Game/Meshes/Modules/SM_Residential_Block_Low,1,AlignToRoad,2,Marketplace
+BLD_002,Building,Residential,A,/Game/Meshes/Modules/SM_Residential_Block_Mid,0.6,AlignToRoad,2,Marketplace
+BLD_003,Building,Residential,A,/Game/Meshes/Modules/SM_Residential_Terrace,0.4,AlignToRoad,2,Marketplace
+BLD_004,Building,Industrial,All,/Game/Meshes/Modules/SM_Industrial_Warehouse,1,AlignToRoad,2,Marketplace
+BLD_005,Building,Industrial,B,/Game/Meshes/Modules/SM_Industrial_Processing,0.5,AlignToRoad,2,Marketplace
+BLD_006,Building,Service,A,/Game/Meshes/Modules/SM_Service_Shopfront,0.8,AlignToRoad,2,Marketplace
+BLD_007,Building,Service,All,/Game/Meshes/Modules/SM_Service_Utility_Block,0.6,AlignToRoad,2,Marketplace
+STR_001,Structural Shell,-,All,/Game/Meshes/Modules/SM_Hull_Rib_Straight,1,Fixed,0,Model
+STR_002,Structural Shell,-,All,/Game/Meshes/Modules/SM_Hull_Rib_Junction,0.4,Fixed,0,Model
+STR_003,Structural Shell,-,All,/Game/Meshes/Modules/SM_DeckPlate_Standard,1,Fixed,0,Model
+STR_004,Structural Shell,-,All,/Game/Meshes/Modules/SM_DeckPlate_Corner,0.5,Fixed,0,Model
+STR_005,Structural Shell,-,All,/Game/Meshes/Modules/SM_Truss_LoadBearing,0.7,Fixed,0,Model
+STR_006,Structural Shell,-,All,/Game/Meshes/Modules/SM_Bulkhead_Segment,0.5,Fixed,0,Model
+HAB_001,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Ground_Paved_Street,1,Fixed,0,Model
+HAB_002,Habitat Surface,-,A,/Game/Meshes/Modules/SM_Ground_Paved_Plaza,0.5,Fixed,0,Model
+HAB_003,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Ground_Planted_Grass,0.8,Fixed,0,Model
+HAB_004,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Ground_Transition,0.6,Fixed,0,Model
+HAB_005,Habitat Surface,-,All,/Game/Meshes/Modules/SM_Pathway_Straight,0.9,Fixed,0,Model
+VEG_001,Greenery & Terrain,-,A,/Game/Meshes/Modules/SM_Tree_Deciduous_Large,0.4,Free,1,Megascans
+VEG_002,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Tree_Deciduous_Small,1,Free,1,Megascans
+VEG_003,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Tree_Conifer,0.6,Free,1,Megascans
+VEG_004,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Shrub_Cluster,1,Free,1,Megascans
+VEG_005,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_GroundCover_Grass,1,Free,1,Megascans
+VEG_006,Greenery & Terrain,-,A,/Game/Meshes/Modules/SM_GroundCover_Fern,0.7,Free,1,Megascans
+VEG_007,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Crop_Row_Agricultural,0.8,Free,1,Megascans
+VEG_008,Greenery & Terrain,-,A,/Game/Meshes/Modules/SM_Planter_Box_Urban,0.5,Free,1,Marketplace
+INF_001,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_Pipe_Straight_Large,1,AlignToRoad,0.5,Marketplace
+INF_002,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_Pipe_Elbow,0.6,AlignToRoad,0.5,Marketplace
+INF_003,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_Vent_Wall_Mount,0.8,AlignToRoad,0.5,Marketplace
+INF_004,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_LightingRig_StreetLamp,0.9,AlignToRoad,0.5,Marketplace
+INF_005,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_LightingRig_OverheadStrip,0.7,AlignToRoad,0.5,Model
+INF_006,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_Cable_Conduit_Run,0.8,AlignToRoad,0.5,Marketplace
+INF_007,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_UtilityBox_Wall,0.7,AlignToRoad,0.5,Marketplace
+WEAR_001,Debris & Wear Kit,-,All,/Game/Meshes/Modules/SM_Decal_RustStreak,1,Free,0,Scan
+WEAR_002,Debris & Wear Kit,-,All,/Game/Meshes/Modules/SM_Decal_Grime_Corner,0.8,Free,0,Marketplace
+WEAR_003,Debris & Wear Kit,-,All,/Game/Meshes/Modules/SM_Clutter_CrateStack,0.7,Free,0,Marketplace
+WEAR_004,Debris & Wear Kit,-,All,/Game/Meshes/Modules/SM_Mask_WeatheringOverlay,1,Free,0,Model
