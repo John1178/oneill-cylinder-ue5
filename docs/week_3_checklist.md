@@ -101,12 +101,32 @@ Consequences:
       of every validator. Result: **13 errors + 1 warning**, all as expected.
 - [x] `tests/README.md` — table of what is planted where, and why the blank mesh is a
       warning rather than an error.
-- [ ] `git add` the tests folder (created but not yet committed)
+- [x] Tests folder committed
 
 ### Prove the data path before the art exists
-- [ ] Point 3–4 rows at placeholder cubes and get PCG to spawn them.
-      CSV → DataTable → PCG → something visible. Finding a broken link now, on 4 rows, beats
-      finding it after 37 meshes are built.
+- [x] **DONE 2026-09-04.** PCG placed **500 cubes on the cylinder's inner surface**, correctly
+      oriented. This answered the architectural question the whole of Weeks 4-6 rested on:
+
+      | question | answer |
+      |---|---|
+      | Can PCG sample arbitrary mesh geometry, not just landscape? | YES - `Mesh Sampler`, core PCG |
+      | Is the coarse 2,190-tri mesh a blocker? | NO - `POISSON_SAMPLING` spaces by radius |
+      | Do sampled points carry correct surface orientation? | **YES** - inward on the inner face, outward on the outer |
+      | Does it need custom C++ / HLSL / Blueprint elements? | **NO** |
+
+      Two gotchas found, both real:
+      - **Mesh Sampler outputs points in the mesh's LOCAL space.** Needs a `Transform Points`
+        node with `Absolute Offset` = the actor's world location. The belt actor's pivot sits
+        exactly on the cylinder axis, which makes the surface maths trivial in local space.
+      - **It samples both faces of a shell.** Inner points at radius ~95,600, outer ~99,600.
+        Filter by radius or by normal.
+
+      Working settings: Mesh Sampler (Poisson, radius 5000, max 500) -> Transform Points
+      (absolute offset, scale 50) -> Static Mesh Spawner.
+
+- [ ] **DataTable -> PCG join — NOT done.** The spawner used a hardcoded cube; `DT_Modules` was
+      never wired in. Two chains work, the join between them is untested. **This is Week 4's
+      first task.** Node identified: `Match And Set Attributes` (has weighting built in).
 
 ---
 
@@ -115,7 +135,7 @@ Consequences:
 - [ ] Day/night presets still on test values (magenta emissive, arbitrary opacity)
 - [ ] `M_Temp` still on all three `Hull_Shell` meshes and every greenhouse module/support
       — **confirmed live 2026-09-02.** These are the largest surfaces in the level.
-- [ ] Delete the orphaned `SC_Refined_SM_Hull_Shell` asset if nothing references it
+- [x] Orphaned greybox assets deleted in the 2026-09-04 content reorg
 
 ---
 
@@ -178,3 +198,30 @@ should be comfortable, making it the right week to close the art gap.
 
 **Week 3 was comfortable and the art gap did not close.** It is now the largest open item, it
 blocks the lighting from looking like anything, and Weeks 4–6 have no slack in them.
+
+
+---
+
+## Content reorganisation — done 2026-09-04
+
+```
+Content/
+   Data/         DT_Modules, S_ModuleRow
+   Maps/  PCG/
+   Materials/    Masters/ Instances/ Functions/ Collections/ Textures/
+   Meshes/
+      Station/   Hull 7 · Belts 3 · Greenhouse 30 · Ring 8 · Mirror 6 · Dock 3 · Misc 1
+      Placeholders/  Reference/
+```
+
+Deleted: `Building_Example` (10), `Greybox` (18), `unreal-mannequin-for-scale-reference` (4
+duplicates), `Materials/GreyBox` (5), all leftover redirectors.
+
+**Cost an hour to a mistake — see `ue_working_rules.md`.** Redirectors were deleted before the
+level was saved, so 58 actors lost their mesh references and every mesh asset fell back to
+`WorldGridMaterial`. Repaired by name-matching, but:
+
+- [ ] **Mesh assets still have `WorldGridMaterial` as their default slot material.** The level
+      looks right because the actors carry component overrides. Drag any Station mesh into a
+      level fresh and it comes in checkered. Fix by reimporting the FBXs — which is happening
+      anyway for the subdivision work.
