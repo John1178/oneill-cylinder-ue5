@@ -302,3 +302,52 @@ There is no setting that gives a sunlit subject *and* a visible star field. Real
 photographs of sunlit spacecraft have black skies. Games cheat by pushing the
 background far past physical values — which is a legitimate art decision, but make it
 knowingly.
+
+---
+
+## Save the level BEFORE deleting redirectors
+
+**Case from 2026-09-04.** Renamed `Meshes/Refined/` to `Meshes/Station/`, verified all 57 level
+actors now pointed at the new paths, then deleted the leftover redirectors. The level had **not
+been saved** since the rename, so the `.umap` and external actor files on disk still held the old
+paths. Deleting the redirectors removed the only bridge between them.
+
+Result on the next editor restart:
+- **58 of 60 StaticMeshActors had `mesh = None`**
+- every mesh asset's material slot fell back to `WorldGridMaterial`
+
+Recovered by name-matching actors to assets, but the mesh assets' *default* materials could not
+be restored — there is no Python API for it (`EditorStaticMeshLibrary.set_material` and
+`StaticMeshEditorSubsystem.set_material` do not exist). Only component overrides could be set.
+
+**Rule:**
+```
+1. rename / move assets
+2. SAVE THE LEVEL          <- the step that was skipped
+3. save all dirty assets
+4. only then Fix Up Redirectors / delete them
+```
+
+**The deeper error:** in-memory references updating is not evidence that on-disk references
+updated. Redirectors exist precisely for the things that are *not* currently loaded. This is the
+same failure as the exposure guess earlier — verify one thing, assume it covers another.
+
+---
+
+## Don't edit a PCG graph through Python while its editor is open
+
+**Case from 2026-09-04.** Added, removed and rewired PCG nodes via Python while the graph asset
+was open in the editor. `remove_node` returned `None` rather than a success value, and the graph
+ended up in a state the editor rejected:
+
+```
+LogPCGEditor: Error: Invalid PCGGraph
+```
+
+Symptoms: nodes added from Python never rendered in the open editor, and clicking any node in the
+palette silently did nothing. The asset then could not be deleted — 5 native references held by
+`GCObjectReferencer` — until the editor was restarted.
+
+**Rule:** PCG graphs are edited in the editor. Python is for *reading* them — node lists, settings
+values, generated instance transforms. If a graph must be written to, close its editor first, and
+expect to verify the result by reopening it.

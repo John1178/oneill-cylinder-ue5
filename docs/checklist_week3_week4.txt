@@ -1,0 +1,159 @@
+===============================================================================
+ O'NEILL CYLINDER - WORKING CHECKLIST - WEEK 3 & 4
+ last updated 2026-09-04
+===============================================================================
+
+ Detail lives in week_3_checklist.md / week_4_checklist.md.
+ This file is the tick-list. Mark [x] as you go.
+
+
+===============================================================================
+ WEEK 3 - DONE
+===============================================================================
+
+ PYTHON TOOL
+ [x] validator - 5 checks, exit code 1 on error, refuses to write bad data
+ [x] test fixture - 14 planted faults, catches 13 errors + 1 warning
+ [x] clean sheet returns zero errors (the control test)
+ [x] README for the tool and the fixture
+
+ INTO UNREAL
+ [x] S_ModuleRow struct - 8 fields (Name is the row key, NOT a field)
+ [x] DT_Modules - 37 rows imported, no warnings
+
+ PCG PROOF OF CONCEPT
+ [x] 500 cubes placed on the cylinder inner surface, correctly oriented
+ [x] confirmed: stock PCG nodes only, no custom C++/HLSL/Blueprint needed
+ [x] found: Mesh Sampler outputs MESH-LOCAL coords -> needs Transform Points
+ [x] found: samples BOTH shell faces -> inner r~95,600  outer r~99,600
+
+ HOUSEKEEPING
+ [x] feature/python-manifest-tool merged into main
+ [x] Content reorganised (Station/, Materials/Masters+Instances+Functions)
+ [x] lighting fixed - sun was 5 lux against a 100,000 lux reference
+
+ STILL OPEN FROM WEEK 3
+ [ ] mesh assets default to WorldGridMaterial
+     (level looks right only because actors carry overrides)
+     -> fixed by reimporting the FBXs, which is happening anyway for subdivision
+
+
+===============================================================================
+ WEEK 4 - TO DO
+===============================================================================
+
+-------------------------------------------------------------------------------
+ 1. FINISH THE JOIN   (do this first - it is short)
+-------------------------------------------------------------------------------
+ [ ] add node "Load Data Table", set Data Table = DT_Modules
+     NOTE: it has NO input pin. Right-click empty space.
+     Dragging from a pin filters it out of the list.
+ [ ] try Output Type = Point, then = Param. Param is probably what
+     Match And Set Attributes wants.
+ [ ] inspect the node output - confirm 37 entries carrying
+     Category / Zone / Belt / Mesh / Weight / RotationMode / Clearance / Source
+ [ ] add node "Match And Set Attributes" between surface points and spawner
+       match_attributes      = false      (no zone matching yet)
+       use_weight_attribute  = true
+       weight_attribute      = Weight
+ [ ] Static Mesh Spawner -> Mesh Selector Type = MeshSelectorByAttribute
+       Attribute Name = Mesh
+ [ ] CHECKPOINT: change a Weight in Excel -> re-export -> reimport -> regenerate
+     -> the mix visibly changes. That is the pipeline working end to end.
+
+-------------------------------------------------------------------------------
+ 2. MAKE THE SURFACE SWAPPABLE   (this is the portfolio thesis)
+-------------------------------------------------------------------------------
+ [ ] filter out the outer shell face (by radius, or by normal direction)
+ [ ] wrap surface sampling in its own subgraph
+       input  = which mesh
+       output = points carrying position + rotation
+ [ ] build a FLAT GROUND version of the same subgraph, same output contract
+ [ ] CHECKPOINT: the same downstream graph runs on both, unchanged
+
+     WHY THIS MATTERS:
+     the claim is "the surface is an input, not an assumption".
+     one surface = a cylinder project with ambitious framing.
+     two surfaces = a tool.
+
+-------------------------------------------------------------------------------
+ 3. ZONING  (Layer 1)
+-------------------------------------------------------------------------------
+ [ ] split the belt into zones along its length (ranges by Y, hand-authored)
+ [ ] write a Zone attribute onto each surface point
+ [ ] set Match And Set Attributes to match Zone -> Zone
+ [ ] CHECKPOINT: residential modules only appear in the residential stretch
+
+-------------------------------------------------------------------------------
+ 4. SAVE THE FAILURE SHOT
+-------------------------------------------------------------------------------
+ [ ] screenshot the standard Surface Sampler FAILING on the cylinder
+     (points firing into space, cubes on their sides)
+     you will produce this for free while things do not work - save it.
+     a two-panel before/after sells the whole project in two seconds.
+
+-------------------------------------------------------------------------------
+ 5. ART TRACK   *** THE ACTUAL RISK - NOTHING DONE SINCE WEEK 1 ***
+-------------------------------------------------------------------------------
+ [ ] SUBDIVIDE THE MESHES  <- highest priority
+     Hull_Shell_A = 2,190 tris across 13.4 km. Belts = 208 tris each.
+     split into SEGMENTS, do not just subdivide in place.
+     fixes four things at once:
+       - shadow terminator artifacts (visible facets on the dome)
+       - Lumen surface cache coverage
+       - World Partition streaming + culling
+       - gives PCG denser, smoother surfaces to sample
+ [ ] reimport the FBXs (also restores default material slots)
+ [ ] replace M_Temp - it is on 34 meshes incl. all 3 hull shells + greenhouses
+ [ ] reference board (PureRef) - NASA Ames archive, public domain, exact subject
+ [ ] rough silhouettes, 6 categories
+ [ ] material library plan
+ [ ] start downloading the 24 sourced modules (Megascans / Marketplace)
+
+-------------------------------------------------------------------------------
+ 6. LIGHTING  (carried, not blocking)
+-------------------------------------------------------------------------------
+ [ ] real space cubemap  <- biggest single visual win available
+     UDS FlatCubemap is a dark placeholder, so Sky Light Intensity
+     is currently multiplying nothing
+ [ ] volumetric fog - physically justified here, the habitat HAS air.
+     atmospheric perspective is what will sell the 13 km scale.
+ [ ] rect lights at the windows: placed but switched OFF
+     (A/B showed them swamped by sun already entering the glass)
+     revisit after ambient exists
+ [ ] shadows vanishing at distance - unresolved
+     use Show > Visualize > Virtual Shadow Map
+     NOTE: VSM uses CLIPMAPS, not the old Dynamic Shadow Distance
+
+
+===============================================================================
+ THINGS THAT WILL BITE YOU  (learned the hard way)
+===============================================================================
+
+ * PCG graphs: edit in the EDITOR, not through Python.
+   Python writes while the editor is open corrupted the graph
+   ("Invalid PCGGraph", nodes silently refuse to place).
+
+ * After renaming/moving assets: SAVE THE LEVEL, then delete redirectors.
+   Doing it the other way round nulled 58 mesh references.
+
+ * Mesh Sampler default radius is 10 uu = 10 cm.
+   At 13 km scale that will hang the editor. Use 5000.
+
+ * A default cube is 100 uu. At station scale it is invisible.
+   Scale points up (~50x) or you will think nothing spawned.
+
+ * Load Data Table has no input pin - right-click empty space to add it.
+
+
+===============================================================================
+ THE ONE THING TO REMEMBER
+===============================================================================
+
+ The technical risk Week 4 was budgeted for is already retired -
+ curved-surface sampling works with stock nodes.
+
+ ALL the remaining slack should go to ART, which has none.
+ A recruiter scrolls past grey boxes no matter what is underneath them.
+
+===============================================================================
