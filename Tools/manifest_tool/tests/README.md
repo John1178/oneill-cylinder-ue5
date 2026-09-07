@@ -1,6 +1,6 @@
 # Test fixture — `module_list_BROKEN.xlsx`
 
-A copy of `docs/module_list.xlsx` with **14 deliberate faults**, one for every branch of
+A copy of `docs/module_list.xlsx` with **16 deliberate faults**, one for every branch of
 every validator in `export_modules.py`.
 
 Its purpose is to prove the validator actually fails when it should. A validator that has
@@ -32,12 +32,26 @@ python -c "import export_modules as em; e,w = em.validate(em.read_rows('tests/mo
 | 23 | Clearance | `-3` | `check_numbers` — negative |
 | 27 | Mesh | `C:\models\thing.fbx` | `check_mesh_paths` — not a UE content path |
 | 29 | Mesh | *(blank)* | `check_mesh_paths` — **warning only**, not an error |
+| 31 | Mesh | `/Game/Meshes/Modules/SM_Pipe_Elbow` | `check_mesh_paths` — short form, missing `.AssetName` |
+| 33 | Mesh | `.../SM_Vent_Wall_Mount.Wrong` | `check_mesh_paths` — the two halves don't match |
 
 ## Expected result
 
 ```
-13 errors, 1 warning
+15 errors, 1 warning
 ```
+
+Regenerated 2026-09-07 when `check_mesh_paths` gained the soft-object-path rule. The two
+new mesh faults cover the bug that cost an hour in PCG:
+
+```
+/Game/Meshes/Placeholders/SM_Cube            silently spawns NOTHING in PCG
+/Game/Meshes/Placeholders/SM_Cube.SM_Cube    works
+```
+
+Epic's docs confirm the canonical form is `/package/path.assetname`. The failure is silent —
+no error, no warning, PCG just skips the point — which is exactly why it belongs in a
+validator rather than being left to be discovered in the engine.
 
 The blank mesh on row 29 is deliberately a **warning**, not an error: an unbuilt asset is
 normal during production and must not block the export. If it ever appears in the errors

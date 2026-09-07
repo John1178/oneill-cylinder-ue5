@@ -280,6 +280,28 @@ def check_mesh_paths(rows):
             errors.append(f"row {module['_row']}: Mesh '{mesh}' must be text")
         elif not mesh.startswith("/Game/"):
             errors.append(f"row {module['_row']}: Mesh '{mesh}' must be a UE path")
+        else:
+            # CLAUDE ADDED 2026-09-07: soft object path must be "Asset.Asset".
+            #
+            # WHY: PCG's Static Mesh Spawner converts this string into a
+            # TSoftObjectPtr. The short form resolves to NOTHING and the point is
+            # silently skipped - no error, no warning, no spawned mesh. Cost an
+            # hour to find, because every other check passed.
+            #
+            #   /Game/Meshes/Placeholders/SM_Cube           -> silently spawns nothing
+            #   /Game/Meshes/Placeholders/SM_Cube.SM_Cube   -> works
+            #
+            # last_part of "/Game/Meshes/Placeholders/SM_Cube.SM_Cube"
+            # is "SM_Cube.SM_Cube"
+            last_part = mesh.rsplit("/", 1)[1]
+
+            if "." not in last_part:
+                errors.append(f"row {module['_row']}: Mesh '{mesh}' must end in .AssetName, e.g. {mesh}.{last_part}")
+            else:
+                asset_name = last_part.split(".")[0]
+                object_name = last_part.split(".")[1]
+                if asset_name != object_name:
+                    errors.append(f"row {module['_row']}: Mesh '{mesh}' - the part after the dot must match the asset name, expected '{asset_name}.{asset_name}'")
 
     return errors, warnings
 

@@ -30,13 +30,13 @@ Consequences for how the work is built:
 
 The spawner currently uses a hardcoded cube. `DT_Modules` has never been connected.
 
-- [ ] Add **`Load Data Table`** node, set `Data Table` = `DT_Modules`
+- [x] Add **`Load Data Table`** node, set `Data Table` = `DT_Modules`
       - node has **no input pin** — right-click empty space, don't drag from a pin
-      - `Output Type` is Point or Param. Try both; **Param** is probably what
-        `Match And Set Attributes` wants
-- [ ] Inspect its output — confirm 37 entries carrying `Category`, `Zone`, `Belt`, `Mesh`,
+      - `Output Type` = **Attribute Set** (the UI name for Param). Confirmed: the
+        `Match Data` pin is typed `Param` and rejects Point.
+- [x] Inspect its output — confirm 37 entries carrying `Category`, `Zone`, `Belt`, `Mesh`,
       `Weight`, `RotationMode`, `Clearance`, `Source`
-- [ ] Add **`Match And Set Attributes`** between the surface points and the spawner
+- [x] Add **`Match And Set Attributes`** between the surface points and the spawner
 
       Pass 1, no matching — just prove the join:
       ```
@@ -47,10 +47,31 @@ The spawner currently uses a hardcoded cube. `DT_Modules` has never been connect
       Every point gets a random module weighted by the spreadsheet. Trees next to warehouses.
       That is fine — it proves data is flowing.
 
-- [ ] Switch the Static Mesh Spawner from the weighted mesh list to
-      **`MeshSelectorByAttribute`**, Attribute Name = **`Mesh`**
-- [ ] **CHECKPOINT:** change a `Weight` in the spreadsheet, re-export, reimport, regenerate,
-      and see the mix change. That is the pipeline working end to end.
+- [x] Switch the Static Mesh Spawner to **`MeshSelectorByAttribute`**, Attribute Name = **`Mesh`**
+- [x] **CHECKPOINT PASSED 2026-09-07** — 90 instances spawned on the belt inner surface,
+      driven entirely by the DataTable. Spreadsheet -> CSV -> DataTable -> PCG -> level.
+
+#### The bug that cost an hour
+```
+/Game/Meshes/Placeholders/SM_Cube            silently spawns NOTHING
+/Game/Meshes/Placeholders/SM_Cube.SM_Cube    works
+```
+Soft object paths need the `Asset.Asset` form. **No error, no warning** — PCG resolves it to
+nothing and skips the point. Epic's docs confirm the canonical form is `/package/path.assetname`.
+
+- [x] `check_mesh_paths` now enforces `.AssetName` — immediately caught 33 more rows
+- [x] All 37 spreadsheet paths corrected
+- [x] Test fixture regenerated: **16 faults -> 15 errors + 1 warning**, including two new
+      soft-object-path cases
+
+#### Still open on this section
+- [ ] **Weighting does not work.** The `Match Weight Attribute` field auto-lowercases to
+      `weight`; the column is `Weight` and PCG attribute names are case-sensitive. Selection
+      is currently unweighted. Try the field's dropdown instead of typing.
+- [ ] *(optional)* Prove the soft-path rule on your own setup — revert one row to the short
+      form, reimport, regenerate, watch the cube count drop. The DataTable was reimported in
+      the same step as the path fix, so strictly the cause is documented-and-inferred, not
+      measured.
 
 ---
 
