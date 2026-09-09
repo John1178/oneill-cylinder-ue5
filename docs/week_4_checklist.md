@@ -127,16 +127,37 @@ The surface points have no `Zone` attribute, so zone-matching cannot work yet.
 Schedule says "structural shells + habitat surfaces blockout" for Weeks 3-4. Week 3's art track
 was **not started**. This is now the project's largest open item.
 
-- [ ] **Mesh subdivision — highest priority.** `Hull_Shell_A` is 2,190 triangles across 13.4 km;
-      belts are 208 each. Fixes four things at once:
-      - shadow terminator artifacts (Epic's documented cause: low poly + high curvature + smooth normals)
-      - Lumen surface cache coverage
-      - World Partition streaming and culling
-      - gives PCG denser, smoother surfaces to sample
-      **Split into segments, don't just subdivide in place** — segmentation is what the modular
-      plan needs anyway.
-- [ ] **Reimport the FBXs** while you're there — that also restores the mesh assets' default
-      material slots, currently `WorldGridMaterial`
+**Revised 2026-09-07 — measured Nanite in 5.7.4, which cuts the hand-tuning.**
+Full detail and the order of work is in `checklist_week3_week4.md` section 5.
+
+Measured density from `SourceArt/Refined/SC_Refined.blend`, re-measured 2026-09-08 as
+`sqrt(area / polys)` = average polygon edge length. *(The earlier figures in this file used
+longest-dimension / poly count, which flatters big surfaces ~5x. These are the areal ones.)*
+```
+SM_Belt_* (x3)          104 polys / 15.9 M m2  = 391 m edge   <- worst, PCG samples this
+SM_Hull_Glass_* (x3)    104 polys / 14.7 M m2  = 375 m edge
+SM_Hull_Shell_A       1,083 polys /  4.3 M m2  =  63 m edge
+SM_Hull_Shell_C      64,512 polys / 12.8 M m2  =  14 m edge
+SM_Hull_Shell_B     239,616 polys / 12.5 M m2  = 7.2 m edge   <- DONE, level 3 applied
+scene total 454,497 polys
+```
+
+- [ ] **Reference board FIRST — 2 hours.** NASA Ames archive: public domain and literally
+      interior views of an O'Neill cylinder. Everything after this is guesswork without it.
+- [ ] **Segment — 8-10 pieces, not 20.** Segments now only serve World Partition streaming
+      granularity, because Nanite handles detail.
+- [x] **Endcaps subdivided** — `Hull_Shell_B` to 7.2 m edge, applied. No shrinkage
+      (boundary edges pinned it). `Hull_Shell_C` still at 14 m — match it.
+- [ ] **Subdivide the belts** — 104 polys -> Catmull-Clark **level 5** (~106 k, 12 m edge).
+      Scene goes 454 k -> ~770 k, nothing for Nanite. **Still required** — Nanite does NOT fix
+      the shadow terminator. Check `dimensions` before/after: a shallow open strip may shrink
+      toward the chord, unlike the endcaps. If it moves, use SIMPLE subdivision instead.
+- [ ] **Reimport the FBXs** — also restores the mesh assets' default material slots,
+      currently `WorldGridMaterial`
+- [ ] **Enable Nanite on everything EXCEPT `Hull_Glass_A/B/C`.** Those use a translucent
+      material, which Nanite does not support — they would render with the default material.
+      Verified: they are the only translucent meshes in the project.
+      Do not author LOD chains for Nanite meshes; Nanite ignores them.
 - [ ] Replace `M_Temp` — it is on 34 meshes including all three hull shells and every greenhouse.
       The largest surfaces in the level are running a placeholder.
 - [ ] Reference board (PureRef) — NASA Ames archive, public domain, exact subject

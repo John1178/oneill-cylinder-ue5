@@ -351,3 +351,64 @@ palette silently did nothing. The asset then could not be deleted — 5 native r
 **Rule:** PCG graphs are edited in the editor. Python is for *reading* them — node lists, settings
 values, generated instance transforms. If a graph must be written to, close its editor first, and
 expect to verify the result by reopening it.
+
+---
+
+## Nanite — what it does, what it does NOT do
+
+Measured on UE **5.7.4**, 2026-09-07.
+
+### Blend mode support — the hard constraint
+
+| blend mode | Nanite |
+|---|---|
+| Opaque | supported, optimal |
+| Masked | supported since 5.1, **substantially more expensive** than opaque |
+| **Translucent** | **NOT supported.** The mesh renders with the *default material* and logs warnings. |
+
+Measured in this project: `r.Nanite.AllowMaskedMaterials = 1`. The only translucent
+materials are `M_Window` / `MI_Window_Belt`, used by `SC_Refined_SM_Hull_Glass_A/B/C`.
+**Those three must stay non-Nanite.** Everything else in the project is opaque.
+
+### What Nanite does NOT fix
+
+**It does not fix the shadow terminator problem.** Nanite *manages* geometry — clusters it,
+culls it, LODs it. It does not *create* it. A 1,083-poly mesh stays 1,083 polys. Epic's fix
+for the terminator artifact is still "increase the polygon count".
+
+```
+Nanite        makes dense geometry CHEAP   (you can afford it)
+Subdivision   makes geometry DENSE         (you still have to do it)
+```
+
+**Nanite Tessellation is not a substitute either.** It exists in 5.7 but is gated:
+
+```
+r.Nanite.AllowTessellation = 0     <- OFF by default in this project
+r.Nanite.Tessellation      = 1     <- runtime flag, gated by the above
+```
+
+It is runtime displacement from a map — *surface detail*, not silhouette. It will not round
+out a cylinder that is one polygon per 12 metres.
+
+### What Nanite does NOT replace
+
+| system | relationship |
+|---|---|
+| **World Partition** | Not interchangeable. WP streams **by actor** — a single 13.4 km actor is all-or-nothing no matter how Nanite handles its interior. **Segmentation is still required for streaming.** |
+| **LODs** | Nanite **supersedes** them. A Nanite mesh ignores its LOD chain. Do not author LODs for Nanite meshes — the work is discarded. |
+| **HLOD** | Cooperates. Nanite near, HLOD for distant region-level representation. |
+
+### Does splitting a mesh cost more draw calls?
+
+Yes for the pieces actually drawn — and that is the point. One 13.4 km mesh is submitted
+**in full** whenever any part of it is on screen; you cannot cull half a mesh. Twenty
+segments cull independently, so in practice fewer are drawn. The draw-call cost only starts
+to bite in the hundreds-to-thousands of pieces, nowhere near 8-20.
+
+### New in 5.7, unverified against Epic's own release notes
+
+`NaniteSettings` gained `voxel_level`, `voxel_ndf`, `voxel_opacity` — the Nanite Foliage /
+Voxels system, aimed at dense vegetation without LOD popping. Possibly relevant to the
+`VEG_*` modules. **MegaLights** is in beta with improved translucency and particle shadowing.
+Both worth confirming in Epic's docs before planning around them.
