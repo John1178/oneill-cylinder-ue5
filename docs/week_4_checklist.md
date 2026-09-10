@@ -128,7 +128,7 @@ Schedule says "structural shells + habitat surfaces blockout" for Weeks 3-4. Wee
 was **not started**. This is now the project's largest open item.
 
 **Revised 2026-09-07 — measured Nanite in 5.7.4, which cuts the hand-tuning.**
-Full detail and the order of work is in `checklist_week3_week4.md` section 5.
+Full detail and the order of work is in `checklist.md` section 5.
 
 Measured density from `SourceArt/Refined/SC_Refined.blend`, re-measured 2026-09-08 as
 `sqrt(area / polys)` = average polygon edge length. *(The earlier figures in this file used

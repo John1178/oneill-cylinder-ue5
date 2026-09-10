@@ -412,3 +412,222 @@ to bite in the hundreds-to-thousands of pieces, nowhere near 8-20.
 Voxels system, aimed at dense vegetation without LOD popping. Possibly relevant to the
 `VEG_*` modules. **MegaLights** is in beta with improved translucency and particle shadowing.
 Both worth confirming in Epic's docs before planning around them.
+
+
+## Surface swapping — three assumptions a second surface exposed
+
+*2026-09-09. Every one of these read as correct while only one surface existed.*
+
+| assumption | why it stayed hidden | how it surfaced |
+|---|---|---|
+| world offset typed into `Transform Points` | it *was* the belt actor's address | points flew to the belt while the camera looked at the plane |
+| `Copy Points` on `Relative` scale | the belt actor's scale is exactly **1**, so x1 is invisible | plane scale 519.8 → **26 km cubes** |
+| `Mesh Sampler` radius 5000 | tuned for a 7,900 m belt | a 100 uu plane asset → **1 point** |
+
+**Rule:** a setting that is wrong can look right when the value happens to be identity.
+Building the second surface is not just proof of portability — it is how the assumptions get
+found. Anything surface-scale-dependent belongs in a subgraph **parameter**, not a typed value.
+
+**Also:** `Mesh Sampler` reads `RENDER_DATA` LOD 0, which on a **Nanite** mesh is the coarse
+fallback. Enabling Nanite silently dropped belt sampling from 90 points to 64.
+
+
+## Asset imports must NOT go through the MCP Python bridge
+
+**Crashed the editor 2026-09-10.** Calling `AssetTools.import_asset_tasks()` from the MCP
+Python bridge asserts and takes the editor down:
+
+```
+Assertion failed: ++Queue(QueueIndex).RecursionGuard == 1
+Engine/Source/Runtime/Core/Private/Async/TaskGraph.cpp  Line: 689
+
+callstack: PythonScriptPlugin -> UnrealMCPython.dll
+           -> FMCPythonTcpServer::ProcessDataOnGameThread()
+```
+
+**Why:** the import internally waits on the task graph for texture compilation, and the bridge
+is already executing inside a game-thread task. Pumping the task graph from inside a task that
+is pumping it is what the recursion guard exists to catch.
+
+**Rule:** import assets through the **Content Browser** (drag and drop, or Import button).
+Afterwards, Python can safely *read* and *set properties* on the imported asset — those are
+plain property access with no task-graph involvement.
+
+**Same family as:** editing PCG graphs via Python (corrupts the graph). Some editor operations
+are not safe to drive remotely; the bridge is for measuring and property-setting, not for
+operations that internally block on engine subsystems.
+
+**Also of note:** the file was a 93 MB, 10000 x 5000 Radiance HDR. Size was not the stated
+cause, but a sky-light cubemap never needs 10K — downsize to 2K before importing anyway.
+
+---
+
+## Ultra_Dynamic_Sky owns the Sky Light — set the actor's variables, not the component
+
+**Symptom:** setting `SkyLightComponent.cubemap` via Python appeared to succeed (read-back
+confirmed `HDR_multi_nebulae_1`, resolution 1024). A second read moments later showed
+`FlatCubemap` at resolution 128. UDS had stamped its own values back.
+
+**Cause:** UDS drives the sky light from its own Blueprint variables every tick / construction
+run. Writing the component is always overwritten.
+
+**The controls (measured, exact internal names, spaces included):**
+
+```
+Sky Light Mode                              UDS_SkyLightMode enum
+Sky Light Cubemap                           TextureCube  <- the real control
+Sky Light Intensity
+Sky Light Cubemap Angle
+Sky Light Lower Hemisphere Tint (Cubemap)
+Sky Light Intensity Multiplier In Interiors
+Skylight Leaking / Full Skylight Leaking Distance     (post process, Lumen)
+```
+
+`UDS_SkyLightMode` = Capture Based · Custom Cubemap · Cubemap with Dynamic Color Tinting.
+There are **two** SkyLightComponents on the actor: `SkyLight` (capture based) and
+`Cubemap Sky Light`; the mode decides which is visible.
+
+**How the names were found:** Python reflection on a Blueprint actor returns only the base
+`Actor` class — `dir()` shows no Blueprint variables. FNames are stored as plain strings in the
+`.uasset` name table, so:
+
+```bash
+grep -aoE "[ -~]{4,}" Ultra_Dynamic_Sky.uasset | grep -Ei "cubemap|skylight" | sort -u
+```
+
+This also returns Epic's and UDS's own tooltips. It is faster and more reliable than searching
+the web for how a Blueprint behaves — same principle as reading the PCG engine headers.
+
+**The measurement that mattered (identical framing via `capture_actors`, one variable):**
+
+```
+Courtyard Daylight HDRI @ 20    near-black, only the sun-lit wing edge reads
+Courtyard Daylight HDRI @ 600   hull, rings, glass, belt all read
+FlatCubemap             @ 600   brighter still - the agriculture belt's green reads
+nebula HDRI             @ 20    indistinguishable from black
+```
+
+**Conclusion:** the interior was black because `Sky Light Intensity` was **20, ~30x too low** —
+not because the cubemap was dark. The flat grey cubemap beats a real daylight HDRI here, because
+it is uniform and UDS tints it by time of day. The 93 MB HDRI import was unnecessary.
+
+**Rule:** before hunting for a better asset, test whether the *scale* is wrong. And when
+comparing two looks, capture from a fixed pose — `capture_actors` frames by actor bounds and is
+repeatable, whereas `capture_viewport` moves the moment the user flies the camera, which
+invalidated the first three comparisons made here.
+
+---
+
+## Light intensity does not survive a change of scale — inverse square is brutal at 1 km
+
+`RectLight_Window_A/B/C` were set to **100,000 candelas** with a 7 km x 900 m source and a 4 km
+attenuation radius. They appeared to be working; hiding all three and re-capturing the same
+frame was **indistinguishable**. They were contributing nothing, inside or out.
+
+```
+illuminance = intensity / distance^2
+100,000 cd / (1,000 m)^2  =  0.1 lux          direct sunlight is ~100,000 lux
+```
+
+Six orders of magnitude short. 100,000 cd is a sane number for a window in a room; the cylinder
+interior is 993 m from axis to hull, so the same number is worthless. Same family as the Mesh
+Sampler radius tuned for 7,900 m: **a value calibrated at one scale is not wrong-looking at
+another, it is just dead.**
+
+**Rule:** whenever a light, radius, or distance moves between scales, recompute it rather than
+nudging it. For lights, `I / d^2` gives the answer in one line.
+
+## The interior/exterior lighting contradiction, and why it is not one
+
+The interior wanted high ambient; the exterior wanted near-zero (space). Driving both from
+`Sky Light Intensity` is a genuine conflict — 600 lit the interior and washed the exterior, 15
+fixed the exterior and killed the interior.
+
+**Attempted fix that FAILED:** hand the interior to the rect lights (1e9 cd) and drop Sky Light
+to 15. Measured: the rect lights do light the ground and the PCG cubes — hiding them turned the
+frame black, so they work. But all three sit at the glass panels emitting *radially inward*, and
+the endcaps' surface normals point *along* the axis, so the endcaps receive them at grazing
+incidence and went pure black. Three window lights are not a complete interior rig.
+
+**What actually works — the difference is one float:**
+
+```
+2026-09-10 artist-set:   Sky Light 50   Sun 2000     -> 24:1 key-to-fill
+earlier approved:        Sky Light 100  Sun 1000     -> 6.4:1
+```
+
+**The two lights are in different units — you cannot ratio them directly.** Per Epic's docs,
+Directional Light is *illuminance* in **lux**; Sky Light is *luminance* in **cd/m2**, multiplied
+by the cubemap's pixel values. Convert with the Lambertian relation `E = pi * L`:
+
+```
+fill_lux  =  pi * SkyLightIntensity * P          P = average cubemap pixel (FlatCubemap ~0.53)
+key_lux   =  SunLightIntensity
+SkyLightIntensity for a target ratio  =  SunLightIntensity / (ratio * pi * P)
+```
+
+P was calibrated from the observation that Sky 600 read "brighter than the sun" at Sun 1000:
+`pi * 600 * P = 1000` -> P ~ 0.53, i.e. mid-grey, as expected for a flat grey cubemap.
+
+Sourced reference points: direct sun at 1 AU = **128,000 lux**; Earth albedo mean **0.3**
+(orbital average 24-42%). Cinematography convention: 2:1 flat, 4:1 medium, 8:1 dramatic.
+
+The Sky Light is omnidirectional, so no value satisfies both at once and no local light rig has
+so far replaced it. Changing one value per shot type costs nothing, duplicates nothing, and
+cannot drift. Rect lights stay at 100,000 (they contribute little at that value, but they are
+the placed rig for later tuning).
+
+**Process failure worth more than the lighting finding:** the interior was already approved as
+"almost perfect" at Sky Light 100, with only the exterior outstanding. The next change altered
+the *interior* to chase a single-setup theory, breaking the approved half to fix the unapproved
+half. **When one half of something is signed off, work only on the other half.**
+
+**Rejected alternatives, with reasons:**
+
+- **Duplicate the map** — two copies of geometry that must both receive every Blender reimport,
+  and they will drift. Also duplicates 70 World Partition external actor packages.
+- **UDS "Apply Interior Adjustments"** — driven by *player camera position* and it modulates the
+  single global sky light. Through the glass panels the interior and space are visible in the
+  same frame, so a camera-based switch pops, and while inside, the space seen through the glass
+  gets the interior's ambient.
+- **A level split** — same reason: you cannot be in two levels in one shot, and this station is
+  built to be seen through.
+- **Lighting Scenarios** — a baked-lightmap feature; this project is fully dynamic, and the
+  engine's World Partition source contains no references to them.
+- **Data Layers** — *not* rejected. The correct tool if per-shot lighting variants are ever
+  needed: toggleable sets of lighting actors, geometry stays single-source. Zero exist so far.
+
+---
+
+## PCG attribute names are NOT case-sensitive — the old rule was wrong
+
+This project carried the rule *"Attribute names are case-sensitive; `weight` != `Weight`, and the
+UI field auto-lowercases what you type."* **Both halves are false.** Verified against UE 5.7
+engine source 2026-09-10, file and line for each step:
+
+| claim | evidence |
+|---|---|
+| PCG reads the *authored* field name from a Blueprint struct, not the GUID-suffixed internal name | `PCGDataTableElement.cpp:150` — `RowStruct->GetAuthoredNameForField()` |
+| the attribute selector does not transform what you type | `PCGAttributePropertySelector.cpp:424` — passes the string straight to `SetAttributeName` |
+| `SetAttributeName` stores the FName verbatim | `PCGAttributePropertySelector.cpp:141` |
+| attribute lookup is case-**insensitive** | `PCGMetadataCommon.h:151,156` — `FPCGAttributeIdentifier` keys on `FName`; `operator==` and `GetTypeHash` both go through FName, which compares on the case-insensitive comparison index |
+| nothing in PCG lowercases attribute names | no `ToLower` in `PCG/Private/Elements` or `PCG/Private/MeshSelectors` except the explicit String Operation node |
+
+`DT_Modules` is a `UserDefinedStruct` row (`S_ModuleRow`, 37 rows), columns:
+`Category, Zone, Belt, Mesh, Weight, RotationMode, Clearance, Source`. PCG sees `Weight`.
+
+**So whatever failure produced this rule had another cause.** Two candidates found while reading
+`PCGMatchAndSetAttributes.h:109-121`:
+
+- `bUseWeightAttribute` ("Use Weight Attribute") is an `EditCondition` on `Match Weight
+  Attribute`. Untick it and the field is inert while still *displaying* your typed value.
+- `Match Weight Attribute` is declared `PCG_DiscardPropertySelection`, so a `$Property` entry is
+  rejected there — attributes only.
+
+Note there are **two** weight fields on that node and they are not interchangeable:
+`InputWeightAttribute` (weight carried on the incoming points) and `WeightAttribute`
+(DisplayName **"Match Weight Attribute"** — the weight column on the match data, i.e. the table).
+
+**The general lesson:** this rule survived for weeks because it was plausible and was never
+checked against source. A rule recorded from a single failed attempt is a hypothesis, not a
+fact — mark it as such until the mechanism is verified.
