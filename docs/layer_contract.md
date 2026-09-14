@@ -395,8 +395,12 @@ Relief amplitude varies across the belt's **width**, not its length:
       glass   mountains     centre 25-30%    mountains   glass
 ```
 
-- **Edges ~200 m, centre ~50-60 m.** The mask scales amplitude; it does **not** flatten. The
-  centre keeps real lowland/highland variation, Earth-like rather than a flat plate.
+- **Edges ~200 m, centre ~50-60 m.** The mask scales amplitude. The centre keeps real
+  lowland/highland variation, Earth-like rather than a flat plate - **except the city plateaus**.
+- **City plateaus (revised 2026-09-14).** Scaling amplitude alone left no level ground for L2
+  streets. Painted districts are flattened in Gaea to one constant height (Mask -> Constant ->
+  Combine, mask bright = Constant), with blurred mask edges as ramps into the hills. On the belt
+  "level" means **constant radius** - one height value - not a flat plane.
 - **Mountains at the edges hide the join** between terrain and structure. Flattening there -
   the first instinct - would expose the seam where ground meets window frame.
 - **Cap the gradient before the glass line** or peaks intersect the window geometry.
@@ -414,5 +418,20 @@ reads.
 ### The mask does double duty
 
 The same relief mask, sampled per point via `Sample Texture`, drives **L1 density** - sparse on
-the mountains, dense in the flat centre. One authored image, two consumers. This is the concrete
+the mountains, dense on the city plateaus. One authored image, two consumers. This is the concrete
 form "artist authoring" takes in L1: the artist paints or generates a mask, the system reads it.
+
+### PCG reads the terrain, never writes it (settled 2026-09-14)
+
+Terrain is shaped only with **native tools**: Gaea for relief, plateaus and masks; Unreal
+Modeling Mode for in-editor sculpting. PCG samples the result, checks slope, and adapts - it has
+no path back into the terrain.
+
+- **Why not a PCG terrain writer:** PCG 5.7 has no node that writes terrain. Building one means a
+  custom Geometry Script Blueprint on the Beta `PCGGeometryScriptInterop` plugin - development
+  cost spent re-creating what native tools already do. The product is the city tool.
+- **Artist edits flow through automatically:** `Mesh Sampler` tracks its mesh and PCG refreshes
+  when a static mesh is saved (engine source; to be confirmed live in the terrain spike).
+- **Slope must be measured against the radial "up"**, never a fixed vector - see checklist 7d.10.
+- **Upgrade path:** UE 5.8 Mesh Terrain (Experimental) adds non-destructive layers and PCG
+  Query/Write nodes; its `Convert Mesh` tool accepts this static mesh, so nothing is thrown away.

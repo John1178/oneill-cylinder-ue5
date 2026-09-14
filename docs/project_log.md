@@ -138,6 +138,46 @@ The material system is competent but not a portfolio headline — MPC day/night 
 standard technique. The differentiating work is the procedural pipeline. Those pieces are also
 individually showable, so applications can start before the project finishes.
 
+### Split into two releases — Publish 1 (PCG tool) and Later (colony polish) — 2026-09-14
+Prompted by the question "if PCG is the main thing, why not finish the tool and post it first?"
+The 2026-09-07 decision above already implied this; execution had drifted into lighting, glass
+and vehicles after the Week 4 checkpoint.
+
+- **Publish 1** = terrain sheet + zoning, L1 density, L2 streets, L3 frontage, presets, editor panel
+  on the residential belt, greybox — then demo video, breakdown, and start applying (checklist D1).
+- **Later** = kitbash/art, lighting leftovers, cubemap, fog, distance shadows, second belt,
+  optimisation pass, hero shots, night mechanism, colony delivery.
+
+Evidence used (searched, not reasoned):
+- Champlain College portfolio guidance: smaller completed prototypes beat large unfinished works.
+- PCG TA postings read 2026-09-14 — Virtuos Senior TA (PCG, UE5), Welevel Procedural Artist (PCG),
+  Epic Senior TA World and Content Creation — plus NetEase JD2: all describe PCG on terrain,
+  roads, settlements or large environments; none specifies portfolio format.
+- **Not found:** any studio or recruiter source saying "tool only" vs "tool in an environment".
+  Keeping the colony as the tool's stage is our inference from the postings, not a sourced rule.
+
+### Terrain — PCG reads it, native tools shape it — 2026-09-14
+A separate curved mesh on the belt, shaped only with Gaea and Unreal Modeling Mode; PCG samples it
+and never writes it. PCG 5.7 has no terrain-writing node, so a custom one would be a Geometry Script
+Blueprint on a Beta plugin — development cost for a job native tools already do. The spike proved the
+route (`ue_working_rules.md` → Terrain).
+
+**Rejected:**
+- UE Landscape — flat grid; a curved belt means ~12 rotated pieces, and PCG only reaches it through
+  the GPU-heavy Landscape Patch plugin.
+- WPO curved-world shader — visual only; collision stays flat and distance fields ignore it.
+- Blender terrain — every artist edit would need a reimport.
+- Houdini Engine — $299/yr Indie; heightfields are 2D too.
+- Voxel Plugin 2 — $349, runtime-only generation, no curved-world docs.
+
+**Upgrade path:** UE 5.8 Mesh Terrain (Experimental, released 23 Jun 2026) — non-destructive layers and
+PCG Query/Write; its `Convert Mesh` takes this static mesh. Untested on a curve.
+
+**Gaea stays on Community (free):** 1K cap → 7,900 m square with the belt as a 1 km band, ~7.7 m/px —
+enough for a blockout. Indie ($99, 8K, commercial use) if the colony piece needs sharper terrain.
+No Gaea MCP: automation and variables are locked on Community, and the servers found are unvetted
+one-author repos.
+
 ### Module list — reworked three times
 - v1: 62 modules (filled the art guide's category ranges to midpoints — wrong, that describes a
   full production kit, not a solo portfolio piece)
@@ -151,6 +191,18 @@ production-accurate, not a shortcut. You model the 13 simplest tiling pieces (st
 habitat surface) where modular discipline actually shows.
 Megascans for vegetation, marketplace for props/buildings, **one self-scanned asset** for the
 照扫 evidence JD1 asks for.
+
+- **Megascans covers 17 of 37 rows** (VEG 8 + HAB 5 + WEAR 4), free and claimed. The other 20
+  (BLD 7 + STR 6 + INF 7) are sci-fi kitbash Megascans never had — that is where sourcing effort goes.
+- **Audit owned packs before buying:** `Industrial Infrastructure` (Sierra Division) and `Ruined Modern
+  Buildings Pack` (Madyan Studios) are already in the Fab library.
+- **Prefer CC0** (Poly Haven, ambientCG, Textures.com free tier): Fab/Marketplace assets cannot ship in
+  the public repo; CC0 can, so the repo stays runnable on clone.
+- **Back up the 4 local Bridge downloads** (`Documents/Megascans Library`, 636 MB) — Bridge is
+  deprecated and Bridge-era downloads cannot be re-fetched.
+- **Cut deliberately:** segmenting into 8–10 pieces (Nanite made it moot) · rough silhouettes ·
+  material library plan.
+- Sourcing is downloading, not authoring — never schedule it as a block.
 
 ### Data path — Epic's documented route
 ```
@@ -169,6 +221,14 @@ Chosen over a custom JSON+Python runtime path because it's what Epic and SideFX 
 Initially proposed putting road/block parameters in the manifest. That was wrong — PCG exposes
 scalars well and they need live iteration. The manifest's job is bulk reference data and
 validation, nothing more.
+
+### Schema meanings — `Zone` and `Belt` (checked 2026-09-10)
+Defined in `module_list.xlsx` ▸ Column Guide. `Zone` = which zone a **building** belongs to
+(Residential / Industrial / Service, `-` for everything else). `Belt` = **A hero / B support / All** —
+a quality tier read only by the validator to catch "Belt A module used in Belt B"; PCG does not read
+it. `Service` is a deliberate zone. A proposed schema rewrite (checklist 7b) misread both and was
+withdrawn — job 8 was never blocked. Open: the agriculture belt has no `Zone` value (checklist 7b-new).
+The validator stays a CLI with exit codes (Week 3); the editor panel calls it.
 
 ### City layout — Epic's CitySample is the reference
 
@@ -264,6 +324,50 @@ ships a native triplanar node. 7 material instances applied to real geometry.
 
 **Pipeline.** Git + LFS, `.gitignore` excluding marketplace content (1,234 MB → 8.24 MB),
 public remote, incremental commit history.
+
+---
+
+## What was built in Weeks 3–5 (moved from the checklist 2026-09-14)
+
+**Week 3 — manifest tool.** Validator (5 checks, exit 1 on error, refuses to write bad data); fixture
+with 16 planted faults → 15 errors + 1 warning; clean sheet returns zero; README; `S_ModuleRow` struct
+(8 fields, `Name` is the row key); `DT_Modules` 37 rows; 500 cubes on the cylinder inner surface with
+stock PCG nodes only. Found: Mesh Sampler outputs mesh-local coords (needs `Transform Points`) and
+samples both shell faces (inner r≈95,600, outer r≈99,600). `feature/python-manifest-tool` merged;
+Content reorganised; sun fixed (5 lux vs a 100,000 lux reference); `WorldGridMaterial` fixed by
+binding each slot.
+
+**Week 4 — the join, checkpoint 2026-09-07.** `Load Data Table` (Output Type = Attribute Set) →
+`Match And Set Attributes` → Static Mesh Spawner `MeshSelectorByAttribute` (Attribute = `Mesh`):
+90 instances on the belt driven entirely by the DataTable; sheet → export → reimport → regenerate end to
+end. `check_mesh_paths` enforces `.AssetName` (caught 33 rows); all 37 paths corrected; fixture regenerated.
+
+**Art pass, 2026-09-08.**
+
+| | before | after |
+|---|---|---|
+| Belts x3 | 104 polys, 391 m edge | 116,736, 11.6 m |
+| Glass x3 | 104 polys | 116,736, 11.2 m |
+| Endcaps B/C | 3,744 | 239,616, 7.2 m |
+| `Ring_Structure` | 2,850, 8 n-gons, 2 objects | 161,610, 9.68 m, merged |
+
+Reimported 2,490,268 tris at exactly 100.00×. **Per-object FBX pipeline** — the 53 MB monolith made UE
+re-translate the whole file per asset (40 min); now 57 files, 2.6 s export, seconds to reimport. Nanite
+on 55 (off on glass). All 57 asset materials bound (`Tools/ue_scripts/material_slot_map.json`). The 133 m
+barrel/endcap gap is a structural collar; `Hull_Shell_A` asymmetry is deliberate; `Ring_Structure.001` was
+the missing second collar. `REF_Human_1m8` origin fixed. Cleaned: Blender 62→59 objects, UE 58→57 assets,
+61 MB stale FBX deleted. Still open: one 5-valence pole per corner on `Ring_Structure` (not blocking).
+
+**Weeks 4–5.**
+- Swappable surface checkpoint 2026-09-09 — same graph on cylinder and plane, 3 parameters. The
+  outer-shell filter was dropped: the terrain sheet is single-sided.
+- Interior ambient solved 2026-09-10 — `Sky Light Intensity` ~30× too low, not the cubemap. Artist
+  values Sky 50 / Sun 2000. Sun lens flare on (Zoom Chromatic, 0.3); light shaft bloom off (needs a medium).
+- Weighted module selection working 2026-09-10 (cube + cone).
+- `M_Window` rebuilt on Substrate 2026-09-11.
+- `M_Temp` replaced 2026-09-14 — 33 assets reassigned, 33 component overrides cleared in the level;
+  verified by render, saved actor files and registry referencers.
+- Terrain spike passed 2026-09-14.
 
 ---
 

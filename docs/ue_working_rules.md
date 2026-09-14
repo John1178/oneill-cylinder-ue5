@@ -738,6 +738,17 @@ chosen. `RenderUtils.cpp:1960` describes 0 as *"Substrate materials are fit into
 GBuffer... **lots of visual effects and fidelity are lost.** ... enforce ClosuresPerPixel=1."*
 Engine default is 1. Changing it needs an editor restart.
 
+**Also set (2026-09-11):**
+- `r.Lumen.TranslucencyReflections.FrontLayer.EnableForProject=1` in `DefaultEngine.ini`. Ships
+  **OFF**; without it translucent surfaces only get the low-quality Radiance Cache (glossy, no mirror).
+- `GlassTint` 0.97 / 1.0 / 0.98 is an **instance override** on `MI_Window_Belt`, not in the master.
+
+**Leftovers (checklist job 5):**
+- The `NightOpacity` / `DayOpacity` / `DayNightBlend` Lerp still feeds `Opacity Override`, which
+  Substrate greys out and ignores. Move it onto the tint, or delete it.
+- Window rect lights: 6500 K with `use_temperature=False`, `cast_shadows=False` on all 3. To wire to
+  `MPC_DayNight`: `WindowEmissiveIntensity`, `WindowEmissiveColor`, `AmbientTint`.
+
 ---
 
 ## A `False` return does not mean the write failed
@@ -784,3 +795,138 @@ verify with a sweep rather than by path: `git status --porcelain | grep -i <pack
 Also check what the pack edited outside Content: this one enabled `ChaosVehiclesPlugin` in the
 `.uproject` and added input mappings to `DefaultInput.ini`, and dropped template input assets in
 `Content/Input/` (confirmed unreferenced by project content before ignoring).
+
+---
+
+## Terrain — Modeling Mode + Gaea (spike 2026-09-14)
+
+Decision + rejected options: `project_log.md` → Terrain. Design: `layer_contract.md` → L0's surface.
+
+### The belt (measured 2026-09-11)
+
+116,744 verts / 233,472 tris, 11.6 m avg edge, 994.73 × 7,900.11 × 162.61 m, 15.7 km² (both shell
+faces). Its `UVMap` is a packed material unwrap with 4.3× texel-density spread — unusable for terrain.
+**Never feed the belt into Gaea** — Gaea rasterises meshes to heightfields and destroys the curve.
+Terrain is generated unrolled in 2D and mapped by UV. **One mesh, no chunking:** Nanite already splits
+into 128-tri clusters; 630k tris ≈ 9 MB; World Partition streams actors, not geometry.
+
+### Spike results (`Testing_Map`, asset `/Game/Maps/_GENERATED/johnnykong/Rectangle_270F106C`)
+
+| step | settings | measured |
+|---|---|---|
+| Rect | Depth 100,000 (X) / 200 subdiv · Width 50,000 (Y) / 100 subdiv · Ground Plane | 40,000 tris, 1,000 × 500 m |
+| Warp Bend | Upper +50,000 · Lower −50,000 · Bend 60° · Lock Bottom off | 954.93 m wide, 127.94 m rise = R 954.9 m exactly |
+| Displace | Texture2D Map `T_Perlin_Noise_M` · Base 0 · Intensity 5,000 · Subdiv 0 · UV Scale (1,2) | lowest Z +0.24 m, width 939.78 m → displacement is **inward** |
+| Displace | Constant 0 · `Flat` · Subdiv 3 | 640,000 tris / 321,201 verts |
+| Vertex Sculpt | default brush | smooth; Accept a few seconds; lowest Z → −14.4 m |
+| PCG | Rectangle tagged `SurfaceSource`, `PCGVolume` + `PCG_SurfaceTest`, SamplingRadius 2000 | spawned modules followed the sculpt |
+
+### Modeling Mode facts (UE 5.7 source)
+
+- **Rect subdivisions ClampMax 500** (`AddPrimitiveTool.h:176`). Tool `Depth` runs along X, `Width`
+  along Y (`AddPrimitiveTool.cpp:551`).
+- **Rect UVs are aspect-scaled** (`RectangleMeshGenerator.cpp:43`) — the short side gets 0 → short/long.
+- **Warp aligns gizmo Z to the longest bounds axis** (`MeshSpaceDeformerTool.cpp:162-187`). X-longest →
+  gizmo Y = world up → bends upward. A square ties into the Y branch and bends sideways. On the 7.9 km
+  sheet it picks the length — **rotate the gizmo by hand**. Bend keeps arc length.
+- **Displace `Flat` subdivision** = `FUniformTessellate`: each triangle → (N+1)² (`UniformTessellate.h:21`).
+  `PN Triangles` rounds the shape.
+- **Displace base value** defaults to 128/255 — set 0 so black = no displacement. Intensity clamp
+  −10,000 to 100,000; the slider only goes ±100, type the value.
+- **Displace reads 16-bit and float textures at full precision:** `G16`, `RGBA16`, `RGBA16F`, `R32F`,
+  `RGBA32F` (`Texture2DUtil.cpp:184-232`).
+- **New assets are not saved** (`AutoGenerateButDoNotAutosave`, stored in `_GENERATED` next to the map).
+  The map can save pointing at a mesh that is not on disk — Save All after every Accept.
+- **Sculpting is destructive** (no layers). Re-displacing from a new heightmap should wipe hand
+  sculpts — expected, untested. Order: Gaea → Displace first, sculpt last.
+- **PCG follows edits:** Mesh Sampler tracks the sampled mesh (`PCGMeshSampler.cpp:545`); PCG
+  refreshes on static mesh save (`PCGActorAndComponentMapping.cpp`, `OnObjectSaved`).
+- **Nanite fallback:** complex-as-simple collision uses the fallback, not the Nanite geometry. Check
+  Fallback Relative Error / Triangle Percent on the sheet, or you walk on a coarser shape than you see.
+
+### Full-sheet recipe (planned, not built)
+
+Rect **500 × 63** subdiv (~15.8 m cells) → Displace `Flat` Subdiv **2** (×9) → ~5.27 m grid, ~567k tris
+→ Warp Bend 60° with the gizmo rotated across the 1 km width → Displace with the Gaea EXR, UV Offset to
+the band.
+
+### Gaea 2.3.0.1 Community (measured)
+
+- **Build cap 1K.** The `Canyon River with Sea` example failed validation (*"build resolution is higher
+  than allowed by your edition"*) — its file had Build **and** Preview Resolution 2048. A File → New
+  project built at 1024 (Bake 2048 did not block it).
+- **Terrains are square:** one `Width` + vertical `Height`. No tiles, regions, automation or variables
+  on Community (official edition table).
+- **Belt layout:** a 1 km band inside a 7,900 m square → ~7.7 m/px. The Rect's own UVs (V 0 → 0.127 on a
+  7.9 × 1 km sheet) already match the band — no UV re-projection needed.
+- **EXR export:** one channel `Y`, 32-bit float, no compression, 1024 × 1024, `INCREASING_Y`. Height
+  port `Out` 0–0.249 (Height 2,500 m); mask port `Depth` 0–1. Heights are a **0–1 fraction**.
+  *Metres = value × Height is the working assumption, unproven* (confirm: change Height, rebuild,
+  values unchanged). Displace Intensity would then be Height (m) × 100.
+- **Unknown:** which image edge is UV 0 in Unreal; whether Unreal imports the float EXR as R32F or RGBA16F.
+- **Licence:** Community is non-commercial — check what that means for a public portfolio before publishing.
+
+### City plateaus in Gaea
+
+**Mask** (Edit Mask; `Blur` + `Iterations` for ramps) → **Constant** (height mode) → **Combine**:
+Input 1 = Constant, Input 2 = terrain, Mask = city mask (bright = Input 1). **Not `Max` mode** — Max
+keeps the higher value, so hills above the plateau survive. Level on the belt = one height value =
+constant radius. Export the city mask as its own image.
+
+### Slope on a cylinder — the `Normal To Density` trap
+
+`Normal To Density` compares every point against ONE fixed vector (`FVector Normal = UpVector`,
+`PCGNormalToDensity.h:51`); up turns 60° across the belt. Per-point up instead: `Attribute Maths Op`
+Subtract (axis X −221,760, Z 175,805 minus `$Position`) → drop Y *(unverified: does Maths Op work
+per component on vectors?)* → `Attribute Vector Op` Normalize → Dot with `$Rotation.Up` (Mesh Sampler
+sets point Z = surface normal, `PCGMeshSampler.cpp:82`) → `Point Filter Range` (1.0 = flat;
+cos 5° = 0.996). Baked alternative: Gaea **Slope** mask — cheaper, stale after an Unreal sculpt.
+
+---
+
+## Distance shadows — two candidates, untested
+
+Measured: `cast_far_shadow = 0` on all 60 actors; `MaxPhysicalPages = 4096`. Check with
+`Show > Visualize > Virtual Shadow Map` before changing either.
+
+## Detail meshes — what is geometry, what is material
+
+| detail | representation |
+|---|---|
+| changes silhouette · casts major shadow · needs collision | real geometry |
+| edge / frame / seam / panel reused across assets | trim sheet |
+| repeats across a broad surface | tileable + normal |
+| shallow, fine, seen front-on | normal map |
+| localised storytelling | decal |
+| dirt / wear / weathering | vertex paint |
+
+Nanite shifts this toward geometry: 55 meshes on Nanite, 454 k → 2.49 M tris at no measurable cost.
+Separate objects, never edited into the shells — one rib modelled once, placed 400×, each a row in
+the sheet. `M_Structural` measured 2026-09-14: one placeholder texture (`Textures/images`, also on
+`MI_Belt_Agriculture`), no normal map, no grime parameter.
+**Not adopted:** POM · vertex painting · decal atlases · Substance authoring — none serve the blockout user.
+
+---
+
+## Quick traps (moved from the checklist 2026-09-14)
+
+| | |
+|---|---|
+| **PCG graphs** | Edit in the **editor**, not Python. A Python write with the editor open corrupted the graph — `Invalid PCGGraph`. |
+| **World Partition** | Actors are separate packages. `save_current_level()` does **not** save them. Needs `actor.modify(True)` then `save_packages()`. Broke the level twice. |
+| **Renaming assets** | **Save the level, then** delete redirectors. The other order nulled 58 mesh references. |
+| **Mesh Sampler radius** | Default 10 uu = 10 cm. At 13 km that hangs the editor. Use **5000**. |
+| **Cube scale** | A default cube is 100 uu — invisible at station scale. Scale points ~50×. |
+| **Load Data Table** | No input pin — right-click **empty space**. |
+| **Soft object paths** | Must be `Asset.Asset`. Short form spawns **nothing, silently**. Now caught by `check_mesh_paths`. |
+| **Attribute names** | **NOT case-sensitive** — PCG keys attributes on `FName` (case-insensitive). |
+| **Silent failures** | PCG often fails with no error. Turn **Debug** on each node and find the last one still holding data. |
+| **Nanite hides tri counts** | `get_num_triangles(0)` on a Nanite mesh returns the **fallback**. `Hull_Shell_B` reports 46,132, is really 479,232. Check reimports by **bounding box**. |
+| **Reimport keeps materials** | It **preserves** a binding when the slot name matches. `WorldGridMaterial` only happens on **first** import. |
+| **Read back what renders** | A component `override_materials` entry beats the asset's default. Job 3 was ticked done while 33 actors still rendered `M_Temp`. Read `component.get_materials()`. |
+| **`M_Temp` was two-sided** | `M_Structural`, which replaced it on 33 assets, is not. |
+| **DataTable-only edits** | Re-exporting `module_list.xlsx` reverts edits made only in `DT_Modules`. StarterContent meshes break on clone (gitignored). |
+| **Blender Edit Mode** | `object.data` with Edit Mode open is **stale**. Use `bmesh.from_edit_mesh()`. |
+| **Names aren't evidence** | `SKM_Quinn_LOD0` is a StaticMesh, not skeletal, not Quinn — it's the 1.8 m human ref. |
+| **"Off-centre" needs a reference** | Compare against the whole scene, not the part you're looking at. |
+| **Modeling Mode assets** | Created but **not saved**. Save All after every Accept. |
