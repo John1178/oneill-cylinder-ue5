@@ -66,7 +66,8 @@ nothing and skips the point. Epic's docs confirm the canonical form is `/package
 
 #### Still open on this section
 - [ ] **Weighting does not work.** The `Match Weight Attribute` field auto-lowercases to
-      `weight`; the column is `Weight` and PCG attribute names are case-sensitive. Selection
+      `weight`; the column is `Weight` and PCG attribute names are case-sensitive. **[FALSE —
+      disproven 2026-09-10, see `ue_working_rules.md`. Archive kept as written.]** Selection
       is currently unweighted. Try the field's dropdown instead of typing.
 - [ ] *(optional)* Prove the soft-path rule on your own setup — revert one row to the short
       form, reimport, regenerate, watch the cube count drop. The DataTable was reimported in

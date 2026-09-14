@@ -208,7 +208,10 @@ check the blocks come out clean.*
 
 - `Mesh` must be the `Asset.Asset` soft-path form. Short form spawns nothing, silently.
   Enforced by `check_mesh_paths`.
-- Attribute names are **case-sensitive**; the UI field auto-lowercases what you type.
+- Attribute names are **not** case-sensitive — PCG keys them on `FName`, whose comparison and
+  hashing are case-insensitive (`PCGMetadataCommon.h:151,156`), and nothing in PCG lowercases
+  what you type (`PCGAttributePropertySelector.cpp:424`). *The opposite claim stood here until
+  2026-09-10; it was never checked against source.*
   This is why weighting is currently broken.
 
 ## L5 — Spawn
@@ -358,3 +361,58 @@ Shot 5 is the one almost nobody shows — the data layer, and the build gate tha
 export broken data.
 
 Everything in this contract exists to make those five shots true.
+
+---
+
+## L0's surface: the terrain sheet (design settled 2026-09-11)
+
+Terrain is a **separate single-sided mesh laid on the belt**, not a displacement of the belt.
+The belt remains structure; the terrain is what L0 samples. This is the layer contract working
+as intended - L0 says "any mesh", so swapping which mesh it samples is a parameter change.
+
+Building it as a separate sheet also removes four problems the belt mesh carries: uneven polygon
+density (measured 2.4 - 315 m^2 per face), a packed material UV with 4.3x texel-density spread,
+the double-sided shell that made PCG spawn on the outer face, and the need for a second UV map.
+
+### Shape
+
+```
+radius      ~954 m from the axis, plus a base offset so it does not z-fight the belt
+footprint   7.9 km long x ~1 km across   (the residential belt)
+grid        uniform, 5 m spacing  (~630k tris - nothing to Nanite)
+UV          clean 0-1, the ground taking the whole image
+```
+
+### Relief: calm centre, mountains at the edges
+
+Relief amplitude varies across the belt's **width**, not its length:
+
+```
+ 1.0 |        /\                              /\
+     |       /  \                            /  \
+ 0.5 |      /    \__________________________/    \
+ 0.25|_____/                                      \_____
+      glass   mountains     centre 25-30%    mountains   glass
+```
+
+- **Edges ~200 m, centre ~50-60 m.** The mask scales amplitude; it does **not** flatten. The
+  centre keeps real lowland/highland variation, Earth-like rather than a flat plate.
+- **Mountains at the edges hide the join** between terrain and structure. Flattening there -
+  the first instinct - would expose the seam where ground meets window frame.
+- **Cap the gradient before the glass line** or peaks intersect the window geometry.
+
+### Water is not authored
+
+A water sheet sits at a **constant radius** (~950 m) - in a rotating habitat "down" is radially
+outward, so a water surface is a *curved sheet*, never a flat plane. A flat plane would look
+right in the centre and sink into the ground toward the edges.
+
+Rivers, lakes and coastlines then **emerge** wherever terrain falls below that radius. Gaea's
+erosion carves the drainage; the water radius floods it. One value controls how wet the habitat
+reads.
+
+### The mask does double duty
+
+The same relief mask, sampled per point via `Sample Texture`, drives **L1 density** - sparse on
+the mountains, dense in the flat centre. One authored image, two consumers. This is the concrete
+form "artist authoring" takes in L1: the artist paints or generates a mask, the system reads it.

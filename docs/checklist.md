@@ -1,22 +1,21 @@
 # O'Neill Cylinder — Project Checklist
 
-*rev 13 · 2026-09-10 · ordered by execution: **1 = do first**.*
+*rev 14 · 2026-09-14 · ordered by execution: **1 = do first**.*
 
 > **This is the one rolling checklist for the whole project.** It is never replaced by a new
 > weekly file. Corrections land here and nowhere else — splitting per week is exactly how job 9
 > kept a claim that had already been disproven. Archived detail: `week_1_2_checklist.md`,
 > `week_3_checklist.md`, `week_4_checklist.md`.
 
-**42 done · 25 open · 63% complete.** Updated **Thu 10 Sep 2026**.
+**52 done · 60 open · 46% complete.** Updated **Mon 14 Sep 2026**.
 
 | # | job | items | when |
 |---|---|---|---|
 | **1** | ~~Swappable surface~~ ⭐ *the thesis* | ✅ | **CLOSED Wed 9** |
-| **2** | Failure shot | 1 | *optional — no scheduled time* |
-| **3** | ~~Replace `M_Temp`~~ | ✅ | **done Wed 9** |
+| **3** | ~~Replace `M_Temp`~~ | ✅ | **done Mon 14** |
 | **4** | Reference board — fill the gaps | 1 | **Thu 10** |
 | **5** | Lit windows | 1 | **Fri 11 AM** |
-| **6** | `Weight` case fix | 1 | **Fri 11 PM** *(buffer)* |
+| **6** | Weighted module selection | 1 | **Fri 11 PM** *(buffer)* |
 | | — end of Week 4 — | **9** | |
 | 7 | ~~City-gen design block~~ ✅ → [`layer_contract.md`](layer_contract.md) | 3 open | Week 5 |
 | 7d | **Terrain on the belt** — the sandbox | 5 | Week 5-6 |
@@ -27,6 +26,16 @@
 | 12 | Volumetric fog | 1 | Week 6 |
 | 13 | Rect lights at windows | 1 | Week 6 |
 | 14 | Source the 24 modules | 1 | ongoing, in gaps |
+| 15 | Second belt | 1 | Week 6-7 |
+| 16 | L1 Density | 3 | Week 6 |
+| 17 | L2 Streets | 4 | Week 6-7 |
+| 18 | L3 Lots — frontage-only | 2 | Week 7 |
+| 19 | Presets | 2 | Week 7 |
+| 20 | Editor panel + reimport script | 3 | Week 7 |
+| 21 | Optimisation pass | 3 | Week 8 |
+| 22 | Polish — shots and captures | 3 | Week 9 |
+| 23 | Delivery | 4 | Week 10 |
+| P | Night / day-night mechanism | 3 | *parked* |
 
 **The Week 4 checkpoint already passed** (2026-09-07, 90 instances driven by the DataTable).
 Everything below is upside.
@@ -56,18 +65,14 @@ multi-week Week 5-6 work regardless.
       unchanged. Swapping a surface = 3 parameter values.
       *Three baked assumptions the twin exposed: see `ue_working_rules.md` → Surface swapping.*
 
-## 2. Failure shot — *optional*
+## 3. Replace `M_Temp` ✅ DONE 2026-09-14 *(reopened and fixed same day)*
 
-- [ ] ⬜ ONE image: the **stock** Surface Sampler failing on the cylinder. It is a statement
-      about PCG's default, not about a bug of yours. Lead image is always the working result;
-      this goes second or later. Do not schedule time for it.  `[optional]`
-
-## 3. Replace `M_Temp` ✅ DONE 2026-09-09
-
-- [x] ✅ 33 meshes reassigned, **zero left on `M_Temp`**, verified by read-back.
-      `MI_Structural_HullShell` x3 · `MI_Greenhouse` x30. Both parent to `M_Structural`,
-      which already has triplanar + LWC — no UVs needed at 13 km.
-      ⚠️ `M_Temp` was two-sided, `M_Structural` is not — watch for holes.
+- [x] ✅ 33 mesh **assets** reassigned: `MI_Structural_HullShell` x3 · `MI_Greenhouse` x30, both
+      parent to `M_Structural` (triplanar + LWC). ⚠️ `M_Temp` was two-sided, `M_Structural` is not.
+- [x] ✅ **Fixed in the level 2026-09-14.** 33 component overrides cleared; actors fall back to the correct
+      asset defaults. Verified three ways: renders 30x `MI_Greenhouse` + 3x `MI_Structural_HullShell`,
+      **0** saved actor files contain `M_Temp`, registry referencers **0** after rescan.
+      `M_Temp` itself is now unreferenced and deletable.
 
 ## 4. Reference board — fill the gaps `[Thu 10]`
 
@@ -83,17 +88,34 @@ multi-week Week 5-6 work regardless.
       key-to-fill; see `ue_working_rules.md` for the lux/cd-m2 conversion).
 - [x] ✅ **Sun lens flare ON** — `Enable Sun Lens Flare`, Zoom Chromatic, strength 0.3. Was
       already configured and simply switched off. Light shaft bloom left OFF (needs a medium).
+- [x] ✅ **`M_Window` glass rebuilt on Substrate 2026-09-11.** Was `Volumetric NonDirectional`
+      (the smoke/dust lighting mode) + opacity-as-transparency = grey film. Now Slab -> Coverage
+      Weight -> Front Material, Colored Transmittance, Surface ForwardShading. **The killer was
+      `Sub Surface Type: Diffusion -> Simple Volume`** — a Details dropdown, not a pin, stamped
+      at Substrate auto-conversion and never re-derived. Full recipe in `ue_working_rules.md`.
+- [ ] ⬜ **Re-point the orphaned day/night rig.** `NightOpacity`/`DayOpacity`/`DayNightBlend`
+      Lerp still runs into `Opacity Override`, which Substrate greys out and ignores. Move it
+      onto the tint, or delete it.
+- [x] ✅ **`r.Substrate.ProjectGBufferFormat` = 1** (verified 2026-09-11).
+- [x] ✅ **Glass reflections fixed** — `r.Lumen.TranslucencyReflections.FrontLayer.EnableForProject=1`
+      added to `DefaultEngine.ini`. Ships **OFF**; without it translucent surfaces only get the
+      low-quality Radiance Cache (glossy, no mirror). `GlassTint` -> 0.97/1.0/0.98 as an
+      **instance override** on `MI_Window_Belt` (first override on that instance).
 - [ ] ⬜ Tune the rect lights warm and wire to `MPC_DayNight` (`WindowEmissiveIntensity`,
       `WindowEmissiveColor`, `AmbientTint`). Currently 6500 K, `use_temperature=False`.
 - [ ] ⬜ Judge whether contact shadows are missed — all 3 rect lights are `cast_shadows=False`.
 
-## 6. `Weight` case fix `[Fri 11 PM]`
+## 6. Weighted module selection `[Fri 11 PM]`
 
-- [ ] ⬜ **Case was never the cause** — disproven in engine source 2026-09-10 (chain in
-      `ue_working_rules.md`). Re-test in editor and find the real cause. First two suspects:
-      `bUseWeightAttribute` ("Use Weight Attribute") unticked — it is an `EditCondition`, so the
-      field is inert without it; and `Match Weight Attribute` carries
-      `PCG_DiscardPropertySelection`, so a `$Property` entry is rejected — attributes only.
+- [x] ✅ **WORKING 2026-09-10.** Cube and cone spawning in weighted proportion.
+      **Real cause: `bUseWeightAttribute` is `InlineEditConditionToggle`** — it has no row of its
+      own in Details, it is the small unlabelled checkbox *left of* the `Match Weight Attribute`
+      field. The field accepts and displays a typed name while doing nothing until it is ticked.
+      Case was never involved. `Match Attributes` stays **off** = random weighted selection.
+- [ ] ⬜ **Two test edits live only in the DataTable** — `BLD_006` -> `SM_Cone` (job 6) and
+      `BLD_004` -> `Shape_Cylinder` (job 8 prep). Re-exporting `module_list.xlsx` reverts both, and
+      `Shape_Cylinder` is StarterContent (gitignored) so it also breaks on clone. Move both into
+      the xlsx with repo-safe meshes, or drop them. Backups in `scratchpad/`.
 
 ---
 
@@ -117,50 +139,50 @@ multi-week Week 5-6 work regardless.
       leave `Zone` building-only as designed and drive agriculture off `Category`
       (`Greenery & Terrain`). Design call, not a bug.  `[Week 5]`
 - [ ] ⬜ **7c. Clearance enforcement** — column exists, nothing reads it.  `[Week 5]`
+- [ ] ⬜ **7e. Correct `layer_contract.md`** — Open decision 2 still proposes the withdrawn Belt/Zone
+      rewrite as pending, and the Presets table + Attribute vocabulary read `Belt` as a belt name.
+      Left as-is it re-triggers the same wrong fix (the job 9 failure mode).
 
-## 7d. Terrain on the belt `[Week 5-6]` — *new scope, 2026-09-09*
+## 7d. Terrain on the belt `[Week 5-6]`
 
-Heightmap-generated terrain laid onto the belt's inner surface. **This becomes what L0 samples**,
-replacing the belt shell.
+**A separate single-sided mesh laid on the belt, not a displacement of it.** The belt stays as
+structure; the terrain becomes what L0 samples. Full design in `layer_contract.md`.
 
-- [ ] ⬜ **1. Decide the source.** Gaea (has a CLI + Extensibility API, and a third-party MCP
-      exists — but automation needs the **Professional/Enterprise** tier) · UE landscape ·
-      sculpt in Blender · or a noise-driven displacement.  `[Week 5]`
-- [ ] ⬜ **2. Solve the wrap.** Terrain is authored flat; the belt is curved. Generate in
-      **unrolled 2D** (belt length x circumference) and map onto the cylinder — the *same*
-      approach already chosen for city layout in `layer_contract.md` L3. One solution, two uses.  `[Week 5]`
-- [ ] ⬜ **3. Repoint L0** — `SurfaceMesh` becomes the terrain, not the belt.  `[Week 6]`
-- [ ] ⬜ **4. Retune `SamplingRadius`** for the new surface. Already a subgraph parameter, so
-      this is a value change, not a rebuild.  `[Week 6]`
-- [ ] ⬜ **5. Add slope + aspect rules** now that there is slope to read — max-slope cull,
-      align-to-slope, density by flatness. **This is the feature terrain exists to unlock**,
-      and it is a strong demo beat.  `[Week 6]`
+- [x] ✅ **1. Source:** real-world DEM -> **Gaea 2.0** -> heightmap + masks (the known
+      "Real to Unreal" workflow). Gaea stays — it is the **mask generator** that drives PCG.
+- [x] ✅ **2. Wrap dissolved.** Terrain is generated in **unrolled 2D** (7.9 km x 1 km) and
+      mapped by UV. **Never feed the belt into Gaea** — it rasterises meshes to heightfields and
+      destroys the curve. UE Landscape also ruled out: flat grid, and WPO curving is visual only.
+- [x] ✅ **3. Belt measured 2026-09-11:** 116,744 verts / 233,472 tris, **11.6 m** avg edge,
+      994.73 x 7900.11 x 162.61 m, area 15.7 km² (both shell faces). Existing `UVMap` is a packed
+      material unwrap with **4.3x texel-density spread** — unusable for terrain, and now moot.
+- [x] ✅ **Scope settled 2026-09-11: Residential belt only** (prove it, then repeat on the
+      others). Terrain **sits on** the belt; the belt stays underneath. **ONE mesh, no chunking**
+      — Nanite already splits into 128-tri clusters and page-streams them; 630k tris ≈ **9 MB**.
+      World Partition streams *actors* not geometry, so one big actor is always-loaded but costs
+      only that 9 MB. Chunking would add UV, export and seam work to solve nothing.
+- [ ] ⬜ **4. Generate the terrain sheet** — single-sided, radius ~954 m + base offset,
+      7.9 km x ~1 km, uniform grid at **5 m** spacing (~630k tris). Clean 0-1 UV.
+- [ ] ⬜ **4b. On import, check Nanite fallback settings** (Fallback Relative Error / Triangle
+      Percent). Complex-as-simple collision uses the **fallback**, not the Nanite geometry — too
+      aggressive and you walk on a coarser shape than you see. This is what made the sports car
+      misbehave on the belt.
+- [ ] ⬜ **5. Author the relief mask** — amplitude across the **width**: ~25-30% centre,
+      ~100% toward both edges, capped before the glass line. Edge relief ~200 m, centre ~50-60 m.
+- [ ] ⬜ **6. Water sheet** — curved, constant radius (~950 m), under the terrain base.
+      Rivers and lakes **emerge** from terrain below that radius; they are not authored.
+- [ ] ⬜ **7. Repoint L0** — `SurfaceMesh` becomes the terrain.  `[Week 6]`
+- [ ] ⬜ **8. Retune `SamplingRadius`** — already a subgraph parameter, so a value change.
+- [ ] ⬜ **9. Wire the Gaea masks into PCG:** `Mesh Sampler` -> tick **`bExtractUVAsAttribute`**
+      (ships OFF), then `Get Texture Data` + `Sample Texture` with
+      **TextureMappingMethod = UVCoordinates**. Gives L1 an image-authored density source.
+- [ ] ⬜ **10. Slope + aspect rules** — max-slope cull, align-to-slope, density by flatness.
+      **The feature terrain exists to unlock.**  `[Week 6]`
 
-**Why this is core, not decoration** *(revised 2026-09-09 — an earlier note filed it as
-"cinematic only", which was wrong):*
-
-- **The tool needs a sandbox.** Placement on a perfectly smooth cylinder wall looks trivial —
-  it is what any scatter node does. On varied terrain the problem becomes *visible*: things
-  conforming to slopes, following valleys, avoiding steep ground. The system does not improve;
-  it becomes **legible**, which is the whole job of a demo.
-- **It unlocks slope and aspect rules** — "nothing above 30 degrees", "orient to the slope",
-  "denser in the flats". Standard in every serious placement system, currently **impossible**
-  here because a smooth surface has no slope to read. A real capability gap, not garnish.
-- **It is a third surface, and the hardest one:**
-  ```
-  flat plane             trivial
-  smooth cylinder        curved
-  heightmap on cylinder  curved AND varied
-  ```
-  Three surfaces of increasing difficulty is a far stronger argument than two.
-- **The pipeline is already known** (Gaea -> UE -> terrain master material), so the usual
-  "new tool, new export path" cost does not apply here.
-
-**It also fixes for free:** the outer-shell double-spawn (job 1's dropped item), and the belt
-reading as a smooth wall rather than as ground.
-
-> **Sequencing:** it changes what PCG samples, so do it **before** zoning and density work,
-> not after.
+**Why it is core, not decoration:** a smooth cylinder has no slope to read, so placement looks
+like any scatter node. Terrain makes the system *legible* and unlocks slope rules. It is also a
+third surface — flat plane / smooth cylinder / varied cylinder — which is a stronger argument
+than two.
 
 ## 8. Zoning (Layer 1) `[Week 5]`
 
@@ -206,6 +228,8 @@ They become PCG modules — rows in the sheet.
       covers the big surfaces; trim covers edges and reused pieces.  `[Week 5-6]`
 - [ ] ⬜ **3. Model only what the table calls geometry**  `[Week 5-6]`
 - [ ] ⬜ **4. Add to `module_list.xlsx`** so PCG places them  `[Week 6]`
+- [ ] ⬜ **5. Texture pass on `M_Structural`** — measured 2026-09-14: one generic placeholder texture
+      (`Textures/images`, also on `MI_Belt_Agriculture`), no normal map, no grime parameter.  `[Week 6]`
 
 **Not adopted:** POM · vertex painting · decal atlases · Substance authoring — none serve the
 blockout user.
@@ -220,11 +244,86 @@ blockout user.
 
 ## 14. Source the 24 modules `[ongoing, in gaps]`
 
-- [ ] ⬜ Megascans / Marketplace. Downloading, not authoring — never schedule it as a block.
-      Every one collected is a real mesh path the validator checks and PCG places.
+- [ ] ⬜ Downloading, not authoring — never schedule it as a block. Every one collected is a
+      real mesh path the validator checks and PCG places.
+- [ ] ⬜ **Audit packs already owned before buying anything.** `Industrial Infrastructure`
+      (Sierra Division) and `Ruined Modern Buildings Pack` (Madyan Studios) are already in the
+      Fab library and sit squarely on the kitbash rows.
+- [ ] ⬜ **Back up the 4 local Bridge downloads** (`Documents/Megascans Library`, 636 MB) before
+      Bridge is retired — Bridge-era downloads cannot be re-fetched once the app goes offline.
+      Library access is via **Fab** now; Bridge is Deprecated.
+
+**Scope note:** Megascans covers **17 of 37 rows** (VEG 8 + HAB 5 + WEAR 4 — scanned nature,
+ground, grime) and those are now free and owned. The other **20** (BLD 7 + STR 6 + INF 7) are
+sci-fi kitbash, which Megascans never had — that is where sourcing effort actually goes.
+- [ ] ⬜ **Prefer CC0 over Fab for this project** — Poly Haven / ambientCG / Textures.com free
+      tier. Fab + Marketplace assets **cannot ship in the public repo**; CC0 can, so the repo
+      stays runnable on clone. That is worth more in a portfolio than better scans.
 
 **Cut deliberately:** segmenting into 8-10 pieces (only served World Partition streaming;
 Nanite made it moot) · rough silhouettes · material library plan.
+
+
+## 15. Second belt `[Week 6-7]`
+
+- [ ] ⬜ Repeat terrain + PCG on a second belt once Residential is proven. The schedule cut Belt C and
+      planned two; the level has three belt meshes — pick the second, decide if the third is cut.
+
+## 16. L1 Density `[Week 6]`  *layer_contract: not started*
+
+- [ ] ⬜ Write `Density` (0-1) onto points — source is the Gaea mask (7d.9).
+- [ ] ⬜ Threshold cull — points below it are removed here; nothing downstream sees them.
+- [ ] ⬜ `Scatter` / `Rows` switch — the one logic branch in the system (Rows = farm, orchard).
+
+## 17. L2 Streets `[Week 6-7]`  *layer_contract: not started*
+
+- [ ] ⬜ Artist-drawn spline actors -> `PCG Spline Sampler` (oriented points every N m).
+- [ ] ⬜ Align points to the cylinder surface normal; spawn street tiles (`Ground_Paved_Street`, `Pathway_Straight`).
+- [ ] ⬜ Write `DistToRoad` + `RoadDir`; L5 reads `RotationMode = AlignToRoad` from them.
+- [ ] ⬜ **Test the tile seam at project scale** — never verified. Fallback: shorter tiles or `DeckPlate_Corner`.
+
+## 18. L3 Lots — frontage-only `[Week 7]`
+
+- [ ] ⬜ Buildings line the roads via `DistToRoad`; block interiors stay green. Emits `LotSize`, `Frontage`.
+- [ ] ⬜ *(stage 2, optional)* 30-min spike: boundary polygon + two splines -> `Polygon2D Operation`
+      `CutWithPaths` -> check the blocks come out clean. Unverified.
+
+## 19. Presets `[Week 7]`  *demo shot 1*
+
+- [ ] ⬜ City / Town / Farm / Factory / Countryside as **data** — an eligibility filter + parameter set, no new logic.
+- [ ] ⬜ Needs 7b-new first: the Presets table filters on `Belt`, which is a quality tier, not a belt name.
+
+## 20. Editor panel + reimport script `[Week 7]`  *yours to write*
+
+- [ ] ⬜ **`import_datatable.py`** — reimports `DT_Modules` from the exported CSV in one command, no import dialog.
+- [ ] ⬜ **Editor Utility Widget** — seed, density, zone split, preset; runs export -> validate -> reimport ->
+      regenerate. The validator stays a CLI with exit codes (Week 3 decision); the panel calls it.
+- [ ] ⬜ **CHECKPOINT** — the panel regenerates a belt without opening the PCG graph.
+
+## 21. Optimisation pass `[Week 8]`
+
+- [ ] ⬜ Baseline **before** any change: draw calls, frame time, and PCG regeneration time.
+- [ ] ⬜ HLOD, instancing, LOD pass — then capture **after**. One clear round, not two.
+- [ ] ⬜ *(deferred)* Drive `CastShadow` / `CullDistance` from the sheet via `static_mesh_component_property_overrides`.
+
+## 22. Polish — shots and captures `[Week 9]`
+
+- [ ] ⬜ Hero shots on the residential belt.
+- [ ] ⬜ Capture the tool UI and PCG debug views.
+- [ ] ⬜ Practical lights on spawned lamp modules (`INF_004` street lamp, `INF_005` overhead strip) — needs job 14.
+
+## 23. Delivery `[Week 10]`
+
+- [ ] ⬜ **Demo video** cut to the shot list in `layer_contract.md` (preset -> density -> road -> surface swap -> sheet edit).
+- [ ] ⬜ **Breakdown page** — lead with what broke on the cylinder and how it was fixed.
+- [ ] ⬜ Resume bullets.
+- [ ] ⬜ Document the Git workflow — branching, LFS, what is gitignored and why. *(partial since Week 1-2)*
+
+## P. Night / day-night mechanism *(parked 2026-09-10 — PCG + terrain first)*
+
+- [ ] ⬜ Wing shutter rotation driven by `MPC_DayNight.DayNightBlend` — never built (`design_day_night.md`).
+- [ ] ⬜ `M_Emissive` starfield LED on the wing's inner face — measured 2026-09-14: **no texture parameters**.
+- [ ] ⬜ Day/night presets off test values, then day/night hero shots. Job 5's rect-light wiring belongs here too.
 
 ---
 
@@ -296,10 +395,11 @@ Nanite made it moot) · rough silhouettes · material library plan.
 | **Cube scale** | A default cube is 100 uu — invisible at station scale. Scale points ~50×. |
 | **Load Data Table** | No input pin — right-click **empty space**. |
 | **Soft object paths** | Must be `Asset.Asset`. Short form spawns **nothing, silently**. Now caught by `check_mesh_paths`. |
-| **Attribute names** | **Case-sensitive.** `weight` ≠ `Weight`. The UI field auto-lowercases what you type. |
+| **Attribute names** | **NOT case-sensitive** — old rule disproven in engine source 2026-09-10. PCG keys attributes on `FName` (case-insensitive) and never lowercases what you type. |
 | **Silent failures** | PCG often fails with no error. Turn **Debug** on each node and find the last one still holding data. |
 | **Nanite hides tri counts** | `get_num_triangles(0)` on a Nanite mesh returns the **fallback**. `Hull_Shell_B` reports 46,132, is really 479,232. Verified against `Hull_Glass_A` (non-Nanite, reports its true 233,472). Check reimports by **bounding box**, not tri count. |
 | **Reimport keeps materials** | It **preserves** a binding when the slot name matches. `WorldGridMaterial` only happens on **first** import. |
+| **Read back what renders** | A mesh asset's default material is not what a placed actor shows — a component `override_materials` entry wins. Job 3 was ticked done after checking assets while 33 actors still rendered `M_Temp`. Read `component.get_materials()`. |
 | **Blender Edit Mode** | Reading `object.data` with Edit Mode open returns a **stale** datablock — counts and UV arrays come back wrong or empty. Use `bmesh.from_edit_mesh()`. |
 | **Names aren't evidence** | `SKM_Quinn_LOD0` is a StaticMesh, not skeletal, not Quinn — it's the 1.8 m human ref. Check the measurement, not the label. |
 | **"Off-centre" needs a reference** | A value is only off-centre relative to a stated reference. Compare against the whole scene, not the part you're looking at. |

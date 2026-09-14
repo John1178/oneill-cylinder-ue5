@@ -631,3 +631,156 @@ Note there are **two** weight fields on that node and they are not interchangeab
 **The general lesson:** this rule survived for weeks because it was plausible and was never
 checked against source. A rule recorded from a single failed attempt is a hypothesis, not a
 fact — mark it as such until the mechanism is verified.
+
+---
+
+## `InlineEditConditionToggle` — the checkbox with no row
+
+`Match And Set Attributes` ignored the `Weight` column for weeks. The recorded cause was
+"PCG lowercases the name and PCG is case-sensitive." Both halves were false. The real cause:
+
+```cpp
+// PCGMatchAndSetAttributes.h:116
+meta = (DisplayName = "Use Match Weight", InlineEditConditionToggle, PCG_Overridable)
+bool bUseWeightAttribute = false;
+```
+
+`InlineEditConditionToggle` tells the Details panel **not to give the bool its own row**. It
+renders as a small unlabelled checkbox *to the left of* the field it gates. So the
+`Match Weight Attribute` field accepts your typed name, displays it back, and does nothing.
+There is no error and no warning. It reads exactly like the name being rejected.
+
+**Rule:** when a PCG field accepts a value and has no effect, grep its header for
+`EditCondition` before doubting the value. Any property whose `EditCondition` bool is marked
+`InlineEditConditionToggle` has a hidden checkbox next to it.
+
+Also on that node: `bMatchAttributes` defaults to **false**, which means *random* selection
+rather than point-to-table matching (`PCGMatchAndSetAttributes.h:77`). Random + Use Match Weight
+is exactly the setup for weighted variety with no zoning, which is what the weight test used.
+
+**Verified working 2026-09-10:** SM_Cube (total weight 3.0) and SM_Cone (0.8) spawning at
+roughly 79/21.
+
+---
+
+## Substrate glass — `M_Window`, solved 2026-09-11
+
+**This project has Substrate ON** (`r.Substrate=True` in `DefaultEngine.ini`). Every "UE5 glass
+material" tutorial online describes the **legacy** path (Shading Model = Thin Translucent). That
+advice does not apply here and will waste a day. Check `r.Substrate` before taking any material
+advice from the internet.
+
+**The symptom:** window looked like flat grey film. `Metallic`/`Specular`/`Roughness` greyed out
+on the output node. Then, after rebuilding as Substrate, completely opaque.
+
+**Two causes, both invisible from the graph:**
+
+**1. Translucency Lighting Mode was `Volumetric NonDirectional`** — Epic's tooltip
+(`EngineTypes.h:317`) says *"Use this on particle effects like smoke and dust... the material
+normal is not taken into account."* No specular at all. That is the smoke-and-dust mode, on a
+window. Correct value is `Surface ForwardShading` (`TLM_SurfacePerPixelLighting`), whose tooltip
+says *"Use this on translucent surfaces like glass and water."*
+
+**2. The Slab's `SubSurfaceType` was stuck on `Diffusion`.** This is the one that cost the most
+time. It is a **dropdown in the Slab node's Details panel**, not a pin, so it is invisible in
+every screenshot of the graph. `MaterialExpressionSubstrate.h:21-23`:
+
+```cpp
+MSS_Diffusion     ToolTip="Diffusion based sub-surface scattering"
+MSS_SimpleVolume  ToolTip="Approximation of optically thin slab (e.g.: glass)
+                           where light is visible through the material"
+```
+
+Diffusion is opaque by definition - light scatters in and never leaves. **Set it to
+`Simple Volume`.**
+
+**Why changing the blend mode did not fix it:** the code that derives `SubSurfaceType` from the
+blend mode (`Material.cpp:4271`, `ConvertSlabExpressionMaterialSubSurfaceType`) runs **only
+during asset conversion**, never on a settings change. The value was stamped `Diffusion` when
+`M_Window` was auto-converted to Substrate and stayed there permanently.
+
+**Blend mode naming trap** (`EngineTypes.h:253-256`):
+
+```cpp
+BLEND_TranslucentGreyTransmittance = BLEND_Translucent   // SAME VALUE - plain "Translucent"
+BLEND_TranslucentColoredTransmittance                    // separate entry, value 7
+   DisplayName = "SUBSTRATE_ONLY - Translucent - Colored Transmittance"
+```
+
+Picking "Translucent" silently gives **grey** transmittance and discards the tint's colour.
+
+**The working recipe:**
+
+```
+root:   Blend Mode    Translucent - Colored Transmittance   (the SUBSTRATE_ONLY entry)
+        Lighting Mode Surface ForwardShading
+        Screen Space Reflections  ON
+        Is Thin Surface           ON
+        Two Sided                 ON
+        Refraction                None      (a flat pane barely refracts; warps at 7 km)
+
+graph:  Substrate Slab BSDF -> Substrate Coverage Weight -> Front Material
+        Diffuse Albedo   0,0,0     glass has no diffuse; grey here reads as frosted plastic
+        F0               0.04      glass IOR 1.5; Epic's dielectric range is 0-0.08
+        Roughness        0.02      near-mirror
+        Coverage Weight  1.0       coverage scales the REFLECTION too - low coverage = no glass
+        SSS MFP      <- GlassTint -> Substrate Transmittance-To-MeanFreePath -> MFP
+
+node:   Slab Details -> Sub Surface Type = Simple Volume     <- NOT a pin. Easy to miss.
+```
+
+**The diagnostic that mattered:** the orange banner at the bottom of the Slab node states its
+classification. It read `SSS Diffusion (Opaque)` the entire time. **Read that banner** - it says
+what Substrate thinks the slab is, and no amount of wiring will override it.
+
+**Also found:** `r.Substrate.ProjectGBufferFormat=0`, written by the **project template**, not
+chosen. `RenderUtils.cpp:1960` describes 0 as *"Substrate materials are fit into a blendable
+GBuffer... **lots of visual effects and fidelity are lost.** ... enforce ClosuresPerPixel=1."*
+Engine default is 1. Changing it needs an editor restart.
+
+---
+
+## A `False` return does not mean the write failed
+
+`unreal.MaterialEditingLibrary.set_material_instance_vector_parameter_value()` returned **False**
+while setting `GlassTint` on `MI_Window_Belt` on 2026-09-11. The read-back showed the value
+applied correctly and the override registered.
+
+Companion to the `static_materials` trap, which fails *silently while returning nothing*. Between
+them: **a UE Python write can succeed while reporting failure, and fail while reporting nothing.**
+The return value carries no information either way. Only a read-back does.
+
+## Material assets open in the Material Editor will overwrite external writes
+
+`M_Window`'s Blend Mode was set to `TranslucentColoredTransmittance` via Python and verified.
+Some time later it read `BLEND_TRANSLUCENT` again - the Material Editor had the asset open, and
+applying node changes there wrote its stale in-memory copy over the Python change.
+
+**Rule:** before setting a property on a material from Python, close it in the Material Editor -
+or set it in the Details panel instead. Prefer putting values on a **material instance**: no
+shader recompile, and the master's open editor cannot clobber it.
+
+---
+
+## Gitignoring a content folder does not ignore its level's actors
+
+The Vehicle feature pack was ignored with `Content/VehicleTemplate/` and `Content/Vehicles/` on
+2026-09-11, verified "0 tracked". Three days later **41 of its files were still staged**:
+
+```
+Content/__ExternalActors__/VehicleTemplate/    38 files
+Content/__ExternalObjects__/VehicleTemplate/    3 files
+```
+
+**Why:** World Partition stores each level's actors as separate packages under
+`Content/__ExternalActors__/<map path>/`, **outside** the folder the level itself lives in. The
+pack ships a demo map, so its actors landed in a path the content-folder rule never covered.
+The verification checked the paths the rule named, not the paths the pack actually wrote.
+
+**Rule:** when ignoring any marketplace/Fab/feature pack that contains a map, also ignore
+`Content/__ExternalActors__/<PackName>/` and `Content/__ExternalObjects__/<PackName>/`. Then
+verify with a sweep rather than by path: `git status --porcelain | grep -i <packname>`.
+
+Also check what the pack edited outside Content: this one enabled `ChaosVehiclesPlugin` in the
+`.uproject` and added input mappings to `DefaultInput.ini`, and dropped template input assets in
+`Content/Input/` (confirmed unreferenced by project content before ignoring).

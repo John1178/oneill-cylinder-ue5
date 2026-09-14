@@ -18,6 +18,15 @@ Plugins/**/Intermediate/
 # ---------------------------------------------------------------
 Content/StarterContent/
 Content/UltraDynamicSky/
+Content/VehicleTemplate/
+Content/Vehicles/
+# World Partition stores a level's actors OUTSIDE its content folder, so the
+# vehicle pack's own map needs its external actor/object folders ignored too.
+Content/__ExternalActors__/VehicleTemplate/
+Content/__ExternalObjects__/VehicleTemplate/
+# Generic template input assets that arrived with the vehicle pack.
+# Verified 2026-09-14: nothing outside the pack references them.
+Content/Input/
 
 # ---------------------------------------------------------------
 # Visual Studio / Rider
@@ -38,6 +47,7 @@ Content/UltraDynamicSky/
 # ---------------------------------------------------------------
 *.bak_before_mcp
 *.bak_before_unreal
+*.bak
 
 # ---------------------------------------------------------------
 # Python bytecode cache (regenerated on import)
