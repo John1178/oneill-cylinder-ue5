@@ -1,11 +1,11 @@
 # O'Neill Cylinder — Project Checklist
 
-*rev 17 · 2026-09-14 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
+*rev 18 · 2026-09-16 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
 measurements) · **`project_log.md`** (decisions, history) · **`layer_contract.md`** (system design).
 
 > The one rolling checklist for the whole project. Corrections land here, nowhere else.
 
-**Open: 66 — Publish 1: 37 · Later: 29.** Updated Mon 14 Sep 2026.
+**Open: 66 — Publish 1: 37 · Later: 29.** Updated Wed 16 Sep 2026.
 
 **Two releases:** Publish 1 = the PCG tool (greybox), then apply. Later = colony polish; nothing in
 Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
@@ -15,11 +15,11 @@ Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
 | # | job | open | when |
 |---|---|---|---|
 | 1 | ~~Swappable surface~~ | ✅ | closed Wed 9 |
-| **7d** | **Terrain on the belt** | 9 | **Week 5 — checkpoint Fri 18 Sep** |
+| **7d** | **Terrain on the belt** | 8 | **Week 5 — checkpoint Fri 18 Sep** |
 | 7 | Design leftovers — 7b-new · 7c · 7e | 3 | Week 6-7 |
 | 6 | DataTable test edits -> xlsx | 1 | Week 5 |
 | 8 | Zoning | 4 | Week 6 *(Week 5 if terrain finishes early)* |
-| 16 | L1 Density | 3 | Week 6 |
+| 16 | L1 Density | 4 | Week 6 |
 | 17 | L2 Streets | 4 | Week 6-7 |
 | 18 | L3 Lots — frontage-only | 1 | Week 7 |
 | 19 | Presets | 2 | Week 7 |
@@ -60,15 +60,17 @@ Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
 Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules.md` → Terrain · Decision: `project_log.md` → Terrain
 
 - [x] ✅ Method settled — Gaea → Modeling Mode → PCG reads; spike passed 2026-09-14
-- [ ] ⬜ 4. Build the full sheet — Rect 500×63 → Flat ×2 → Bend 60° (rotate gizmo) → Displace
-- [ ] ⬜ 4b. Check Nanite fallback settings on the sheet
-- [ ] ⬜ 5. Gaea relief — 7,900 m square, 1K, belt = 1 km band
-- [ ] ⬜ 5b. Gaea city plateaus + export city mask
+- [x] ✅ 4. Full sheet built 2026-09-16 — 567k tris, on the belt → `ue_working_rules.md` → Terrain
+- [x] ✅ 4b. Nanite on, fallback 100% (567k), collision Complex As Simple — 2026-09-16
+- [x] ✅ 5. Gaea relief — valley + edge mountains + river, done 2026-09-15 (build 018) → `gaea.md` → Final graph
+- [ ] ⬜ 5b. ~~City plateaus~~ **deferred 2026-09-15** — PCG follows the natural valley (city zone 94% under 10°); revisit after the L2 tile-seam test
 - [ ] ⬜ 7. Point L0 `SurfaceMesh` at the terrain
 - [ ] ⬜ 8. Retune `SamplingRadius`
 - [ ] ⬜ **CHECKPOINT Fri 18 Sep** — terrain on the belt, PCG samples it
-- [ ] ⬜ 9. Gaea masks into PCG `[stretch]`
-- [ ] ⬜ 10. Slope rules — per-point up, not `Normal To Density` `[stretch]`
+- [ ] ⬜ 9. Gaea masks into PCG
+- [ ] ⬜ 10. Slope rules — per-point up, not `Normal To Density` (replaces plateaus: streets/buildings only on gentle ground)
+- [ ] ⬜ 11. Gaea mask set — slope, soil, flow, river → EXR (one set feeds material + PCG; city zones come from zoning, job 8)
+- [ ] ⬜ 12. `M_Terrain` — blend by the mask set `[after the terrain mesh]`
 - [ ] ⬜ 6. Water sheet at constant radius `[Later]`
 
 ## 7. Design leftovers
@@ -95,6 +97,7 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 - [ ] ⬜ Write `Density` (0-1) from the Gaea mask (7d.9)
 - [ ] ⬜ Threshold cull
 - [ ] ⬜ `Scatter` / `Rows` switch (Rows = farm, orchard)
+- [ ] ⬜ Vegetation scatter (trees, grass) from the soil + slope masks — no hand painting
 
 ## 17. L2 Streets `[Week 6-7]`
 

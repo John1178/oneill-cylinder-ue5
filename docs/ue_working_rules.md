@@ -844,11 +844,108 @@ into 128-tri clusters; 630k tris ≈ 9 MB; World Partition streams actors, not g
 - **Nanite fallback:** complex-as-simple collision uses the fallback, not the Nanite geometry. Check
   Fallback Relative Error / Triangle Percent on the sheet, or you walk on a coarser shape than you see.
 
-### Full-sheet recipe (planned, not built)
+### Belt inner surface — measured in `Space_Colony` 2026-09-15 (MCP line traces from the axis)
 
-Rect **500 × 63** subdiv (~15.8 m cells) → Displace `Flat` Subdiv **2** (×9) → ~5.27 m grid, ~567k tris
-→ Warp Bend 60° with the gizmo rotated across the 1 km width → Displace with the Gaea EXR, UV Offset to
-the band.
+- Actor `SC_Refined_SM_Belt_Residential`: pivot on the axis **(−221,760.55, 49,112.33, 175,805.30)**, rotation 0,
+  scale 1. Bounds Y ±395,005 (7,900 m), X ±49,737, Z 76,380 → 92,641. **Axis runs along world Y.**
+- **Radius 954.66 m** straight down at Y −300,000 and Y +400,000 (identical → axis parallel to Y) and at ±20°.
+- **Near the edges the belt flattens outward:** 24° → 955.01 m · 26° → 955.79 m · 28° → 957.27 m (both sides) ·
+  29° → 958.46 m · 29.5° → 959.23 m. Surface normals stop following the circle past ~23° (tilt ~24°).
+- **±30.5° hits `Hull_Glass_A/B`** at ~974–976 m → the belt spans **±30°** (60°).
+- Traces at the belt's middle (Y 49,112) hit **`SC_Refined_SM_Ring_Structure`** at ~955.5 m instead — a ring
+  crosses the belt there. Measure belt surfaces away from rings.
+- **The other two belts are the same belt rotated ±120° about the axis** (measured bounds, all three actors share the
+  axis pivot, rotation 0, same 7,900 m length): `Belt_Industrial` bounds centre offset from the axis (+73,820, +43,082)
+  with extents X 26,068 / Z 43,389; `Belt_Agriculture` (−73,828, +43,071) with X 26,039 / Z 43,362. A 60° arc
+  rotated to 0°–60° predicts centre (735.8 m, 430.5 m) and extents (258.5 m, 430.5 m) — matches. The art table
+  also lists the three belts as identical (116,736 quads each).
+  → **Same terrain sheet fits all three**: duplicate the mesh asset per belt (Displace edits the asset), move its
+  pivot onto the axis (Edit Pivot tool), rotate ±120° about Y.
+
+### Full-sheet recipe — bend first, then stretch (BUILT 2026-09-16)
+
+Warp bends along the longest side, so bend a near-square piece, then stretch along the axis:
+
+1. Rect **Depth 99,800 (X) / 63 subdiv · Width 99,000 (Y) / 500 subdiv** — X longest so the gizmo auto-aligns.
+   Arc radius = 99,800 / (π/3) = **953.0 m** (1.66 m inside the belt's 954.66 m).
+2. Warp Bend **60°**, Upper/Lower **±49,900**, Lock Bottom off → expect ~953 m wide, ~127.7 m rise.
+3. Actor **Scale Y = 7.98** (790,011 / 99,000) → 7,900 m long. Stretching along the axis leaves the arc unchanged.
+4. **Bake Transform** (Bake Rotation on, Bake Scale = Bake Full Scale, Recenter Pivot off) — Epic's Mesh
+   Distance Fields doc: "Non-uniform scaling cannot be handled correctly". Tool options from `BakeTransformTool.h`.
+5. Displace `Flat` Subdivisions **2** → ~5.3 m grid, ~567k tris.
+6. Displace **Texture2D Map** with the Gaea EXR: UV Scale **(0.1266, 1.008)**, UV Offset **(0.4367, 0)**
+   (`UV = UV * UVScale + UVOffset`, `DisplaceMeshTool.cpp:216`). Rect UVs: U 0–1 across the width, V 0–0.992
+   along the length → the belt runs along the image's **vertical** axis → Gaea LinearGradient **Direction 90**.
+7. Place at **X −221,760.55, Y 49,112.33, Z 80,505.3** (lowest point = axis Z − 95,300). The pivot stays at the
+   bottom centre through Warp and Bake (spike: location 0,0,0 with min Z 0 at the centre).
+
+### Measured while building it (2026-09-16)
+
+| step | predicted | measured |
+|---|---|---|
+| Rect | 63,000 tris · 998 × 990 m | 63,000 tris / 32,064 verts · 99,800 × 99,000 cm ✅ |
+| Bend 60° | 953.02 m wide · 127.68 m rise | 953.02 m · 127.65 m ✅ |
+| Bake Transform | Y 7,900.2 m · scale 1,1,1 | 7,900.2 m · 1,1,1 · X and Z unchanged ✅ |
+| Displace Flat ×2 | 567,000 tris | 567,000 tris / 285,190 verts ✅ |
+
+- **Bent-sheet lowest point sits at Z +3.29 cm, not 0** — the arc is cut into 63 flat segments and the centre
+  falls between two vertices; the chord sag there is 3.29 cm exactly. Not an error.
+- **Keep a duplicate of the bent+baked sheet** before displacing (`Backup1`). Displace edits the asset and the
+  accept is **not undoable** — without a spare it is a four-step rebuild.
+- **Verify by tracing from the cylinder axis, not from the bounding box.** Ground measured 897.6 m (centre),
+  911.4 / 923.0 m at ±25° — all inside the belt's 954.66 m. Bounding-box reasoning misled repeatedly because the
+  actor was not placed at the recipe coordinates.
+- **The terrain floats 32–57 m above the belt plate** as placed; nudge ~35 m outward to close the edge gap.
+
+### Displace tool — the parts that cost a day
+
+- **UV orientation:** the arc direction selects image **rows**, the belt length selects **columns**. Gaea's
+  `LinearGradient Direction 90` produced the band across *columns*, so the EXR had to be transposed
+  (`Belt_Residential_Height_T.exr`). Fix at source next rebuild: **Direction 0** → `gaea.md` → 7d.
+- **Transposing the image and swapping UV Scale/Offset are the same flip** — do both and they cancel. Symptom:
+  long smeared streaks down the length.
+- **Displace reads the texture's SOURCE, not the platform data** (`DisplaceMeshTool.cpp:869` calls
+  `ReadTexture(..., bPreferPlatformData=false)` → `ReadTexture_SourceData`). So Compression Settings and sRGB do
+  not affect displacement accuracy — only the material later. Source formats read at full precision: `BGRA8`,
+  `RGBA16`, `RGBA16F`, `RGBA32F`, `R32F`, `G16` (`Texture2DUtil.cpp:184-240`).
+- **Displace Intensity clamps to −10,000 … 100,000** (`DisplaceMeshTool.h`), slider only ±100 — type the value.
+  So you **cannot** flip direction with a negative intensity at our scale (we need ±40,000).
+- **Displacement Map Base Value defaults to 128/255** — set 0 or everything darker than mid-grey displaces the
+  wrong way. It does **not** persist across a rebuild.
+- **Rect UVs (source-confirmed):** `RectGen.Width = tool Depth` (X), `RectGen.Height = tool Width` (Y)
+  (`AddPrimitiveTool.cpp:551`); the short side gets 0 → short/long (`RectangleMeshGenerator.cpp:43`).
+- **Warp Bend is Beta** and its bend/normal direction is not consistent between rebuilds — Epic forum thread on
+  bend direction. If displacement runs the wrong way, fix it with **Attribs → Normals → Invert Normals**, not
+  with a negative intensity.
+
+### Nanite fallback — 7d.4b, measured 2026-09-16
+
+**Enabling Nanite with the default `Fallback Target = Auto` cut Render Data LOD 0 from 567,000 to 1,837
+triangles** — a 99.7% reduction, ~90 m triangles across terrain that varies by tens of metres inside each one.
+
+That matters because **both PCG and collision read the fallback, not the Nanite geometry**:
+
+- `PCGMeshSampler.h`: `RequestedLODType = EGeometryScriptLODType::RenderData`, `RequestedLODIndex = 0` — so the
+  Mesh Sampler scatters onto the fallback by default.
+- Epic: the fallback is used "when a complex collision is needed, using lightmaps for baked lighting, and for
+  hardware ray tracing reflections with Lumen". Our mesh is `CTF_USE_SIMPLE_AND_COMPLEX`, so line traces hit it too.
+
+Engine defaults (`EngineTypes.h` → `FMeshNaniteSettings`): `bEnabled false` · `FallbackTarget Auto` ·
+`FallbackPercentTriangles 1.0` · `FallbackRelativeError 1.0` · `KeepPercentTriangles 1.0` · `TrimRelativeError 0.0`.
+**The percent/relative-error fields only take effect once `FallbackTarget` is off `Auto`.**
+
+**Setting used (verified 2026-09-16):** Nanite on · **Fallback Target = Percent Triangles** · **Fallback Triangle
+Percent = 100** · Collision Complexity = **Use Complex Collision As Simple**. Verified: Render Data LOD 0 back to
+**567,000 tris / 285,190 verts**, identical to the source. Cost: a second full-res copy in memory.
+
+- ⚠️ **The UI field is a percentage, the engine property is a 0–1 fraction.** Typing `1.0` in the Static Mesh
+  Editor means *one percent* → 5,670 tris (567,000 × 1%, measured). Type **100**.
+- The mesh had **0 simple and 0 convex collision shapes**, so under `Simple And Complex` line traces hit it but
+  capsules and physics passed straight through. `Use Complex Collision As Simple` is required, not optional.
+- **`Show → Nanite Fallback` (Ctrl + N)** in the Static Mesh Editor toggles the viewport between the Nanite mesh
+  and the fallback — the direct way to see what collision and PCG actually use.
+- Escape hatch if the 567k collision cook is too heavy: lower the fallback and set the Mesh Sampler's
+  **`Requested LOD Type` to `Source Model`** so PCG stays exact while collision goes coarse.
 
 ### Gaea 2.3.0.1 Community (measured)
 
