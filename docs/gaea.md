@@ -324,21 +324,41 @@ which is right. Needs a contrast stretch: **Soil → Autolevel** (the fix alread
 **Flow needs no new node:** `Erosion2_Flow.exr` = 0-0.504, mean 0.0016, 0.7% of pixels above 0.05 — a
 sparse, sharp stream network.
 
-## 7d. Orientation — the band must run across ROWS, not columns (2026-09-16)
+## 7d. Orientation and which build the mesh uses (measured 2026-09-17)
 
-**`LinearGradient Direction 90` was the wrong call.** It puts the valley across image **columns**
-(build 010). Unreal's Displace samples the sheet so that the arc direction selects image **rows**, so the
-band has to be across rows — i.e. `LinearGradient` **Direction 0** (the default).
+**`LinearGradient Direction 90` is correct — keep it.** Measured on the final Unreal mesh: Displace's UV X runs
+across the belt and picks image **columns**, UV Y runs along it and picks **rows**, so a valley across columns
+(Direction 90) is the right layout. *Correction:* the 2026-09-16 note here said the opposite and told you to
+switch to Direction 0 — that was wrong. **Do not change Direction.** The transposed files
+(`Belt_Residential_Height_T.exr`, `_TI.exr`, `Belt_Residential_RiverMask_T.exr`) are unused.
 
-Interim fix used for the first mesh: the EXR was **transposed offline** into
-`SourceArt/Gaea/Belt_Residential_Height_T.exr` (single `Y` channel, 32-bit float, uncompressed, 1024^2 —
-byte-identical header to Gaea's own output apart from `screenWindowWidth`). **Set Direction 0 and rebuild
-when the mask set is built**, then no transpose is needed.
+**The final mesh was displaced from build 018** (`SourceArt/Gaea/Belt_Residential_Height.exr`) with UV Scale
+(0.1266, 1.008), UV Offset (0, 0) — so it shows image columns 0–130 across the belt, not the valley band.
+Details and the fit: `ue_working_rules.md` → Terrain → Final state.
 
 **Builds are reproducible.** `belt/001` and `Belt_Residential/019` are byte-identical (same MD5 on
 `Rivers_Out` and `Rivers_Rivers`) from the same saved graph. Build **018 differs** (0.89% of pixels equal,
 max 20.3 m) because the graph changed between that build and the save two minutes later — not
-non-determinism. So a forgotten mask **can** be re-exported later and will still match.
+non-determinism. **Consequence for masks:** 018 can't be rebuilt, so only masks 018 already exported match the
+mesh exactly — `Rivers_Rivers` (= `SourceArt/Gaea/Belt_Residential_RiverMask.exr`), `Erosion2_Flow`,
+`Erosion2_Wear`, `Erosion2_Deposits`. A mask from any new build (e.g. Soil) is ~20 cm rms off.
+
+## 7e. Mask builds 020–021 and the derived masks (2026-09-18 → 22)
+
+Measured in the strip the mesh samples (image columns 0–129):
+
+| node (build) | result | used? |
+|---|---|---|
+| Height, Range 0.35–1.0 (020) | full white from 140 m up, but the default Falloff spreads the ramp ~85 m *below* the min → half strength at 96 m, 33% of the belt | rebuilt |
+| Height, Range **0.46**–1.0 (021) | half strength at 138 m, **10.7%** of the belt, fades in from 101 m, solid by 176 m | ✅ `Belt_Residential_MountainMask.exr` |
+| RockMap, defaults (020 = 021) | median 0.89, 84% above 0.5 — texture everywhere, not a cliff selector | ✅ as rock-variant mix only |
+| Soil, defaults (020 = 021) | only 0.344–0.847 in the strip (the full image spans 0–1) | ✅ stretched in the material |
+| Slope, defaults (020 = 021) | white on 98% of the belt, −0.51 vs real steepness | ❌ replaced by a slope map computed from 018 |
+
+**Gaea Community caps builds at 1024**, so masks are 7.7 m per pixel; the river is median 2 px wide and 41% of
+it is a single pixel. The smooth 2048 river masks and every other derived mask are made outside Gaea from the
+018 exports — how and why: `ue_working_rules.md` → Terrain → *Terrain material*. Scripts:
+`Tools/terrain_masks/`.
 
 ## 8. Traps
 
@@ -349,6 +369,7 @@ non-determinism. So a forgotten mask **can** be re-exported later and will still
 | docs.gaea.app renders client-side; some URLs 404 to scripts — open in a browser. The GitHub `Gaea2Docs-Reference` pages are mostly empty placeholders. | [measured] |
 | "Terrain" tab in the side panel is the node list; terrain size lives in More settings… → Terrain. | [measured] |
 | **Save As under a new name restarts the build counter and changes the output folder** (`Belt_Residential/018` then `belt/001`). | [measured] |
+| **Height's Range is absolute** (0–1 of the terrain height), and the default **Falloff extends the ramp below the Range min** (~0.21 ≈ 85 m at 400 m height). Set the min higher than the height where you want half strength. | [measured, builds 020/021] |
 | Saving over a test file in `Builds` (e.g. `Canyon River with Sea.terrain`) — the originals live safely in the install `Examples` folder. | [measured] |
 
 ## 9. Resources

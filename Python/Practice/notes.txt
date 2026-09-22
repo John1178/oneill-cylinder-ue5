@@ -1,0 +1,12 @@
+2026-09-17 Day 1
+- pass 是佔位,function不能空
+- rsplit("_", 1) 從右切一次 或者 split("_",1)从左边切一次
+- removesuffix(".png") 拿掉副檔名
+- 判斷在不在清單裡用 not in,不是 !=
+- 清單用 [0] [1] 拿東西
+- return 會結束function,放最後
+- 呼叫function的 print 要放在 def 外面
+- != 是比兩個東西。 「這個跟那個一不一樣?」
+- not in 是找一個東西在不在一堆裡面。 「這個有沒有在那個清單裡?」
+x != "BaseColor"                              # 右邊是一個東西 → 用 !=
+x not in ("BaseColor", "Normal", "Metallic")  # 右邊是一堆東西 → 用 not in

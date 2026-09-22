@@ -18,6 +18,7 @@ Solo **UE 5.7.4** O'Neill cylinder portfolio piece aimed at **Technical Artist (
 | `docs/project_log.md` | decisions + history + working rules |
 | `docs/ue_working_rules.md` | engine how-to, traps, measurements (incl. **Terrain** section) |
 | `docs/gaea.md` | everything Gaea: limits, UI, nodes, recipes, measurements, final graph |
+| `docs/pcg_nodes.md` | **every PCG node in UE 5.7.4** — description, settings with defaults / options / edit conditions, palette aliases, deprecations, this project's PCG traps. **Check here before answering any PCG node question.** Rebuild: `python Tools/pcg_reference/build.py` |
 | `docs/layer_contract.md` | the city-generation system design (L0–L5, demo shot list) |
 | `docs/schedule_revised_10week.md` | the 10-week plan (superseded in parts by the checklist) |
 

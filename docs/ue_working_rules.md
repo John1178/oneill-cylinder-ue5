@@ -431,6 +431,17 @@ found. Anything surface-scale-dependent belongs in a subgraph **parameter**, not
 **Also:** `Mesh Sampler` reads `RENDER_DATA` LOD 0, which on a **Nanite** mesh is the coarse
 fallback. Enabling Nanite silently dropped belt sampling from 90 points to 64.
 
+**Two more L0 assumptions the terrain surface exposed (2026-09-16):**
+
+| assumption | why it stayed hidden | how it surfaced |
+|---|---|---|
+| `SurfaceTag` identifies one actor | only the belt carried `SurfaceSource` | `SC_Refined_SM_Ring_Structure` was tagged too; `Data From Actor` is `Get Single Point` with `select_multiple: false`, so it silently took the ring — every instance spawned **76,444 cm** too high, exactly the ring-vs-terrain Z gap |
+| `Max Num Samples` 500 is plenty | fine on the spike's 1 km x 500 m rect | on a 7.9 km x 1 km belt it caps sampling at ~1/6 of one pass; it is **not** exposed as a user parameter, so it does not scale with the surface |
+
+Diagnose spawn-offset bugs by reading instance transforms, not by eye: dump
+`InstancedStaticMeshComponent.get_instance_transform(i, world_space=True)` and compare against the source
+actor's location. The constant Z delta names the wrong actor immediately.
+
 
 ## Asset imports must NOT go through the MCP Python bridge
 
@@ -879,6 +890,244 @@ Warp bends along the longest side, so bend a near-square piece, then stretch alo
 7. Place at **X −221,760.55, Y 49,112.33, Z 80,505.3** (lowest point = axis Z − 95,300). The pivot stays at the
    bottom centre through Warp and Bake (spike: location 0,0,0 with min Z 0 at the centre).
 
+### L0 sampling on the belt terrain — measured 2026-09-16
+
+`SG_SurfaceSource` exposes 8 parameters, all overridden on the Subgraph node in `PCG_SurfaceTest`:
+`SurfaceMesh` · `SurfaceTag` · `SamplingRadius` · `Max Num Samples` · `Sub Sample Density` ·
+`Requested LOD Type` · `Remove Hidden Triangles` · `Seed`.
+
+| setting | value | what it does (engine tooltip, `MeshSamplingFunctions.h` / `PCGMeshSampler.h`) |
+|---|---|---|
+| SurfaceMesh | terrain sheet | the mesh sampled, in **mesh-local** space |
+| SurfaceTag | `SurfaceSource` | `Data From Actor` finds the actor with this tag and uses its transform — **must be unique** |
+| SamplingRadius | 1000 | "Spacing between samples is at least 2x this value" — measured 20.0 m min spacing |
+| Max Num Samples | 0 | "If 0 or default value, mesh will be maximally sampled" — **0 = radius decides** |
+| Sub Sample Density | 10.0 | "Density of subsampling used in Poisson strategy. Larger = more accurate but slower" |
+| Requested LOD Type | 3 = RenderData | "LOD type to use when creating DynamicMesh" — RenderData is the **Nanite fallback**; Source Model ignores it |
+| Remove Hidden Triangles | True | "Post-processing pass after **voxelization**" — `EditCondition = bVoxelize`, and Voxelize is **off**, so this is **inert** |
+| Seed | 0 | two seeds exist: `SamplingOptions.RandomSeed` and the node `Seed` (only with `Use Seed`) — check which is wired |
+
+Result: **2,336 points**, Y span 7,899 m of 7,900, radius 699.7-959.4 m from the axis. Point count scales
+roughly as 1/radius^2.
+
+**Not isolated:** the jump from 675 to 2,336 coincided with Max Num Samples going from a finite 5000 to 0 *and*
+the new parameters taking effect. The tooltip says a finite value is a *request*, so it plausibly changes
+sampler behaviour even below the count — most likely cause, but untested. One-run check: density 10, max 5000, compare.
+
+**Correction (2026-09-16):** an earlier note said Remove Hidden Triangles discarded the belt's outer shell face.
+It cannot have — it only runs after voxelization, and Voxelize is off. The outer-shell filtering in
+`layer_contract.md` must come from elsewhere; re-check before relying on it.
+
+**Trap:** adding a user parameter initialises it to **zero** and immediately marks it overridden, so exposing
+a working setting silently replaces it with 0 / False. Set the value *and* the subgraph's own default straight
+after exposing it — the default is what a fresh PCG component inherits (job 15's second belt, job 20's panel).
+
+### Final state of the terrain sheet (2026-09-16) ✅
+
+| | |
+|---|---|
+| asset | `/Game/Terrain/Mesh/SM_Belt_Terrain_Residential` — 567,000 tris / 285,190 verts |
+| actor location | **X -221,760.55 · Y 49,112.33 · Z 99,361.383** (rotation 0, scale 1) |
+| ground distance from the cylinder axis | **564.9 - 934.7 m** (belt inner surface is 954.66 m) — all inside the hull |
+| verified | axis trace at Y 250,000 hits terrain at **912.87 m**; river reads as a cut channel, relief upright |
+| Nanite | on, Fallback Target `Percent Triangles`, Triangle Percent 100 -> fallback back at 567,000 |
+| collision | `Use Complex Collision As Simple` (mesh has 0 simple shapes) |
+
+**How this mesh was actually displaced — measured 2026-09-17** (2,419 radial traces from the sheet's own arc
+centre, each converted to displacement `d` and arc position `U`/`V`, then fitted against every candidate image):
+
+| | value |
+|---|---|
+| source image | **Gaea build 018** — `SourceArt/Gaea/Belt_Residential_Height.exr` (fit rms **8.9 cm**; build 019 = 22.5 cm) |
+| UV Scale / UV Offset | **(0.1266, 1.008) / (0, 0)** |
+| orientation | **standard** — image columns across the belt (U), rows along it (V); no transpose, no flips |
+| Base Value | **0.502 (the default 128/255)** — fit `d = -40,000 x v + 20,076 cm`; 0.50196 x 40,000 = 20,078 |
+| Intensity | 40,000 |
+| direction | correct — higher Gaea value = further toward the axis; the whole surface is shifted **200.8 m outward** by the base value |
+
+So the relief is right; the constant 200.8 m outward shift is what the raised actor Z absorbs (Z 99,361.383 is
+188.6 m above the concentric 80,503.3). With UV Offset 0 the mesh samples image **columns 0–130**, the edge of
+the Gaea image, not the valley band at 447–577 — the tilted slice chosen on 2026-09-16.
+
+**Masks that match it exactly already exist** — build 018 exported them: `Rivers_Rivers` (=
+`SourceArt/Gaea/Belt_Residential_RiverMask.exr`, same MD5), `Erosion2_Flow`, `Erosion2_Wear`,
+`Erosion2_Deposits`. Any mask must be sampled with the **same UV numbers and no transpose** (plus the half-pixel
+offset below). Build 018 cannot be regenerated (the graph changed before it was saved), so masks from a new build
+(e.g. Soil) are ~20 cm rms off.
+
+**Reading masks on this mesh (material and PCG) — measured + source-checked 2026-09-17**
+
+| | |
+|---|---|
+| UV channels | **1** (render LOD0) — `TexCoord[0]` is the only one; one material slot, `Material_0` |
+| UV0 layout | U **0–1** across the belt, V **0–0.991984** along it (= 99,000 / 99,800); UV area 0.992, no unset UVs |
+| vs the fit's UV model | 18,000 random vertices: max **0.15 px**, rms 0.03 px (Gaea pixels) |
+| Displace reads | UV layer 0 only (`DisplaceMeshTool.cpp:191`), `UV × Scale + Offset` then `Frac` (`:216-217`); pixel k sits at UV **k / 1024** (grid origin 0, cell 1/W — `:882`, `SampledScalarField2.h:98-103`) |
+| GPU and PCG read | pixel k at UV **(k + 0.5) / 1024** — D3D11.3 spec §7.18.8 ("U is scaled by the Texture1D size, and 0.5f is subtracted"); `PCGTextureData.cpp:97-99` |
+| measured effect | the GPU rule on the same UVs fits the mesh at **86.9 cm rms** vs **8.9 cm** — masks would sit half a Gaea pixel (~3.9 m) off |
+
+- **Mask UV = TexCoord[0] × (0.1266, 1.008) + (0.000488, 0.000488)** (0.000488 = 0.5 / 1024) — same in `M_Terrain`
+  and in PCG.
+- **Clamp, not Wrap.** With the offset, V reaches 1.000408 at the far end; Wrap blends image row 0 into the last
+  ~7 m. Set the mask texture's `X-axis / Y-axis Tiling Method` (Advanced, `Texture2D.h:62-67`); the Texture Sample
+  node's default `Sampler Source` is *From texture asset* (`EngineTypes.h:283`).
+- **PCG edge trap:** `Sample Texture` (UVCoordinates) clamps to 0–1 (`PCGSampleTexture.cpp:151-155`), then
+  `SamplePointLocal` takes `Frac` (`PCGTextureData.cpp:426-427`) — a UV of exactly 1.0 reads row **0**. Cap the mask
+  UV at 0.9999 before sampling (the last ~3 m of the belt). Get Texture Data filter default: Bilinear
+  (`PCGTextureData.h:149`).
+- **Landscape Layer Blend outputs 0 on this mesh.** Its weights come from `StaticTerrainLayerWeight`
+  (`MaterialExpressionLandscapeLayerBlend.cpp:178`), whose parameters only a Landscape creates
+  (`LandscapeEdit.cpp:656`). With none, it returns `INDEX_NONE` outside the Material Editor preview
+  (`HLSLMaterialTranslator.cpp:9454-9465`), every layer is skipped and the output stays `Constant(0)`
+  (`MaterialExpressionLandscapeLayerBlend.cpp:179, 222`) — the preview shows Preview Weight, the level shows
+  black. Use Texture Sample + Lerp.
+
+The sheet's arc centre sits 188.6 m above the cylinder axis, so the two curves are not concentric and the terrain
+floats above the belt plate by a varying amount. Accepted as-is — the junction at the strip edges is job 11
+(detail meshes / window-to-land). Revisit only if the gap reads badly once the hull junction is dressed.
+
+**Note on order:** displacing the flat Rect *before* bending would make "up" unambiguous (every normal +Z) —
+worth trying if this sheet is ever rebuilt. *(Untested.)*
+
+**Also:** setting `collision_trace_flag` or `nanite_settings` through Python does NOT rebuild the cooked
+collision — line traces pass straight through until **Apply Changes** is pressed in the Static Mesh Editor.
+
+### Terrain material — `M_Terrain_Master` (built 2026-09-21, tuned 2026-09-22)
+
+| asset | role |
+|---|---|
+| `/Game/Terrain/Materials/M_Terrain_Master` | the master: 8 layers, every number a parameter |
+| `MI_Terrain_Residential` | this belt's instance — on the mesh asset (slot `Material_0`) and as a component override on the actor |
+| `M_Terrain` | v1 (4 layers, constants), kept as backup — delete once the master is signed off |
+
+Cost: 233 nodes · 596 pixel instructions · 41 texture reads · **4 sampler slots**. Every sample uses a shared
+sampler — *Shared: Wrap* for ground textures, *Shared: Clamp* for masks — because each *From texture asset*
+sample takes a sampler slot "which are limited in number" (`EngineTypes.h:282`).
+
+**Layer stack** — each blend paints over the result so far:
+
+| # | layer | texture (scan size) | driver (instance values) |
+|---|---|---|---|
+| 1 | Grass | `wild_grass` (0.41 m) | base |
+| 2 | Dry Grass | `grass_dried` (1 m) | 170 m noise patches, threshold 0.7 |
+| 3 | Dirt | `dry_trampled_soil` (2 m) | max(soil stretched from 0.68 × 12.5, flow streaks × 1.0) |
+| 4 | Scree | `dirt_ground` (2 m) | slope 12° → 18° |
+| 5 | Rock | `icelandic_jagged_slate_rock`, mixed with `mine_rock_wall` by RockMap (both 2 m) | slope 22° → 30°, plus mountain mask × 0.4 |
+| 6 | River Bank | `icelandic_sand_with_pebbles` (2 m) | RiverBank_2k, threshold **1.0** / softness 0.2 — chosen: almost no bank reads more natural |
+| 7 | River Bed | `swamp_water` (1 m) | RiverMask_2k, edge threshold 0.5 / softness 0.6 |
+
+**Each surface:** base colour sampled twice (near and far tile, same texture) and crossfaded by distance; normal
+and roughness at the near tile; then Saturation → Tint → Brightness → × macro tint → Make Material Attributes.
+
+**Shared chains**
+- **Mask UV** = TexCoord × (0.1266, 1.008) + 0.000488 — see *Reading masks on this mesh* above.
+- **Metre UV** = TexCoord × (998, 7964), so every tile size is in metres.
+- **Distance blend** = engine `Distance_Blend` (`/Engine/Functions/Engine_MaterialFunctions03/Particles/`):
+  PixelDepth **+** Start Offset, ÷ Blend Range, clamp. The offset is *added*, so the graph negates the
+  `Detail Blend Start (cm)` parameter (10,000 → fully far at 70,000 cm).
+- **Macro tint** = `T_MacroVariation` every 300 m: 1 + (noise − 0.5) × strength (0.5 → ±25%).
+- **Saturation** uses `Desaturation` with Fraction = 1 − Saturation. It compiles to `Lerp(Color, Grey, Fraction)`
+  with no clamp (`MaterialExpressions.cpp:7902`), so Saturation above 1 adds colour. With nothing plugged into
+  Fraction the node returns pure grey.
+
+**Grass colour (2026-09-22):** the wild grass scan is brown — hue 39°, only 5.8% of pixels green-dominant, and
+none of the three grass scans is green on average. Instance set to Saturation 1.4 · Tint (0.48, 1.35, 1.10) ·
+Brightness 1.15, previewed in linear space first: hue 76°, 90% green-dominant, blade detail kept.
+
+**Signed-off instance values (2026-09-22)** — everything else is at the master default:
+
+| group | parameter | value | master |
+|---|---|---|---|
+| 03 Masks | Mask River · Mask River Bank | `…RiverMask_2k` · `…RiverBank_2k` | 1024 versions |
+| 05 Layer Rules | Dry Grass Threshold · River Bank Threshold | 0.70 · 1.00 | 0.55 · 0.60 |
+| 06 Surface Response | Cavity Strength · Grazing Falloff | 1.50 · 0.56 | 1.00 · 3.00 |
+| 06 Surface Response | Grazing Roughness Boost · Grazing Specular Reduction | 0.55 · 0.78 | 0 · 0 |
+| 10 Grass | Saturation · Tint · Normal Strength | 1.40 · (0.48, 1.35, 1.10) · 3.00 | 1 · white · 1 |
+
+Grass Brightness ended at 1.0 (the 1.15 above did not survive) and Grass Specular at 0.5. The grass diffuse is
+still below Epic's 0.21 — raise Brightness if more light is ever wanted.
+
+**Parameter groups:** 01 Terrain Size · 02 Mask Mapping · 03 Masks · 04 Distance And Macro · 05 Layer Rules ·
+06 Surface Response · 10–17 one per surface (Base Color / Normal / Roughness / Cavity, Tile Near / Far,
+Saturation / Tint / Brightness, Specular, Normal Strength).
+A new belt = duplicate the instance, then swap groups 02, 03 and the surface textures.
+
+**Derived masks** — all from the exact build-018 files, because any new Gaea build lands ~2 px (15 m) off the
+mesh. Rebuild with `python Tools/terrain_masks/build.py`; `--check` rebuilds into a temp folder and compares
+(all five identical on 2026-09-22).
+
+| file | from | how | measured |
+|---|---|---|---|
+| `Belt_Residential_Slope.exr` | Height (018) | gradient at 7.7 m/px → degrees ÷ 90, float64 | 0–78.4°, median 6.8° · 0–8° 55.8% · 8–15° 23.4% · 15–25° 14.6% · 25–40° 5.6% |
+| `Belt_Residential_RiverBank.exr` | RiverMask (018) | ring 1–12 px wide by stream size × noise (seed 21) | 10.8% of the belt · full to ~20 m, half at ~38 m, faint tail to ~90 m |
+| `Belt_Residential_FlowStreaks.exr` | Flow (018) | window 0.002 → 0.014 | > 0.5 on 2.6% of the belt (raw flow > 0.02 is only 1.1%) |
+| `…RiverMask_2k`, `…RiverBank_2k` | the two above | centre-aligned bicubic ×2, blur, area-matched edge (0.475) | river area 1.53% = original · alignment peak at zero shift (±0.02 m) |
+
+Measured and **not** used: Gaea's Slope node (default range selects gentle ground → white on 98% of the belt,
+−0.51 correlated with real steepness), Erosion2 Deposits (max 0.011) and Wear (max 0.127).
+
+**Megascans / Fab surfaces** — in `SourceArt/*_2k/` and `Content/Terrain/Megascans/`, **both gitignored**: the
+Fab Standard License does not allow redistributing the files, and the imported `.uasset`s carry the same data.
+- **Normal maps are DirectX — do not flip green.** Measured on all nine by correlating each normal map's green
+  channel with the slope of its own displacement map (−0.69 to −0.90; the red channel confirms the height
+  polarity). Common advice says Quixel exports are OpenGL — not true for these files.
+- **Roughness imports with sRGB on** → set sRGB off + Grayscale (done for all nine).
+- **Distant ground read as glossy plastic** — normals average to flat with distance while roughness stays put
+  (grass averages 0.81). Fix (2026-09-22): every roughness texture carries its own normal map as
+  **Compositing → Composite Texture**, mode *Add Normal Roughness To Red* (`TextureDefines.h:322`), power 1.
+  Raise **Composite Power** (1, 2, 4, 8) if sheen remains. *(Measured afterwards: not the cause — see below.)*
+
+**"Plastic cover" look — diagnosis (2026-09-22), all from real viewport screenshots:**
+- **Unlit:** colour already flat from mid-distance — fine-grained scans average to one tone at any tile size.
+- **Roughness buffer:** terrain a uniform ~0.8 — roughness was never the problem (river bed 0.06 by design).
+- **Detail Lighting, looking straight down:** normal maps *do* apply, but read as shallow, even, repeating
+  bumps (embossed wallpaper); at a standing view they flatten out and only the sheen remains.
+- **Stored mesh normals are correct** — within 0.4–3.8° of the true face normals at every slope.
+- **Grass diffuse too dark:** ~0.05 linear after tint vs Epic's measured *green grass 0.21*, *bare soil 0.13*
+  (Physically Based Materials page) — the constant ~4% specular dominates a diffuse that dark.
+- **Sun along the valley:** sideways component 0.086, so the two valley walls differ by ~8% in light
+  (20° slopes: 0.69 vs 0.75); 42% of the belt is in hard shadow from hull, ring and the far belt.
+- **Fix applied:** Epic's cavity method — base colour × cavity, specular 0.5 × cavity — plus per-surface
+  **Normal Strength**, **Specular** and a global **Cavity Strength** (group 06). Cavity maps only carry real
+  contrast on the grasses (wild grass mean 0.86, dried grass 0.63; the rest 0.91–0.97).
+- **AO maps are not wired:** the Ambient Occlusion input is *silently ignored with Movable lights*
+  (Epic, Material Inputs), and this project's sun and sky light are Movable.
+- **Root cause found by the user:** plastic only when facing the sun, normal with the sun behind → it's the
+  **reflection** (forward-scattered specular at grazing view), not the diffuse. Confirmed: Grass Specular 0
+  facing the sun removes it. Known engine-wide problem — Epic forum *"Landscape Reflections - Being PBR is
+  Not Enough"*: at a grazing view, texture filtering averages away the micro-shadows that break up a low
+  sun's reflection on real ground. Fix built (their suggestion "raise roughness by angle"): a **grazing mask**
+  = `Fresnel` on `VertexNormalWS` (base 0, exponent = `Grazing Falloff`, default 3), driving
+  **Grazing Roughness Boost** (roughness → 1) and **Grazing Specular Reduction** (specular × (1 − r·mask)) on
+  all eight surfaces, group 06. Both default 0 (off). 346 nodes · 705 pixel instr · 49 reads · 4 samplers.
+- The remaining gap is geometry — a flat plane can't read as grass; grass meshes via PCG come next.
+
+**Diagnosis tooling traps:** console `ShowFlag.*` commands don't reach editor viewports; the MCP
+`vision.capture_viewport` renders its own image from the camera pose (ignores the viewport's view mode);
+`unreal.AutomationLibrary.set_editor_active_viewport_view_mode()` / `set_editor_viewport_visualize_buffer()`
+do change the real viewport — verify with an actual screen capture.
+- **Scan sizes differ** (metadata `scanArea`): wild grass 0.41 m; grass & rubble, grass dried, swamp water 1 m;
+  the rest 2 m — hence per-surface tile sizes.
+- **2K chosen:** tiles every 2–6 m, so ≥ 340 px/m; eight surfaces ≈ 130 MB at 2K against ~500 MB at 4K.
+
+**Traps hit building it**
+- An **open Material Editor keeps its own copy** of the graph and flushes it over external writes — one Python
+  build was lost this way. Check `editor.get_open_assets` before every write, for instances and meshes too.
+- **`EditorAssetLibrary.save_loaded_asset` defaults to `only_if_is_dirty=True`**, and editing a struct array
+  (e.g. `static_materials`) with `set_editor_property` does not mark the package dirty, so the save is skipped
+  silently and the change dies with the session. Call `asset.modify()` first, pass `False`, and confirm with
+  the `.uasset` file's modified time.
+- **Imported Fab textures are new `.uasset`s under `Content/`** that the `SourceArt/*_2k/` rule doesn't cover —
+  they got staged by a `git add`. `git rm --cached` refuses files whose staged copy differs from both disk and
+  HEAD; **`git restore --staged <path>`** is the clean unstage.
+- `set_material_instance_texture_parameter_value` returned False while the value was set (read back) — see
+  *A False return does not mean the write failed*.
+- Material **comment boxes can't be sized from Python** (`SizeX`/`SizeY` are plain `UPROPERTY()`) — select the
+  nodes and press C.
+- Python API (5.7): the expression list is protected — walk from `get_material_property_input_node` with
+  `get_inputs_for_material_expression`; `get_material_expression_input_names(expr)` takes one argument; node
+  positions are `material_expression_editor_x/_y`.
+
 ### Measured while building it (2026-09-16)
 
 | step | predicted | measured |
@@ -899,11 +1148,15 @@ Warp bends along the longest side, so bend a near-square piece, then stretch alo
 
 ### Displace tool — the parts that cost a day
 
-- **UV orientation:** the arc direction selects image **rows**, the belt length selects **columns**. Gaea's
-  `LinearGradient Direction 90` produced the band across *columns*, so the EXR had to be transposed
-  (`Belt_Residential_Height_T.exr`). Fix at source next rebuild: **Direction 0** → `gaea.md` → 7d.
+- **UV orientation (corrected 2026-09-17, measured):** standard — UV Scale/Offset **X** acts across the arc and
+  selects image **columns**; **Y** acts along the belt and selects **rows**. Gaea `LinearGradient Direction 90`
+  (valley across columns) was already the right orientation. **No transpose is needed.** The 2026-09-16 claim that
+  the arc selects rows was wrong, and `Belt_Residential_Height_T.exr` / `_TI.exr` are unused.
 - **Transposing the image and swapping UV Scale/Offset are the same flip** — do both and they cancel. Symptom:
-  long smeared streaks down the length.
+  long smeared streaks down the length. (True, but neither is needed here.)
+- **Verify a displaced mesh by fitting, not by eye:** trace radially from the sheet's arc centre with
+  `StaticMeshComponent.line_trace_component` (hits only that mesh), convert each hit to displacement + U/V, and
+  regress against the candidate image. A linear fit gives Intensity (slope) and Base Value (intercept) directly.
 - **Displace reads the texture's SOURCE, not the platform data** (`DisplaceMeshTool.cpp:869` calls
   `ReadTexture(..., bPreferPlatformData=false)` → `ReadTexture_SourceData`). So Compression Settings and sRGB do
   not affect displacement accuracy — only the material later. Source formats read at full precision: `BGRA8`,
@@ -911,12 +1164,15 @@ Warp bends along the longest side, so bend a near-square piece, then stretch alo
 - **Displace Intensity clamps to −10,000 … 100,000** (`DisplaceMeshTool.h`), slider only ±100 — type the value.
   So you **cannot** flip direction with a negative intensity at our scale (we need ±40,000).
 - **Displacement Map Base Value defaults to 128/255** — set 0 or everything darker than mid-grey displaces the
-  wrong way. It does **not** persist across a rebuild.
+  wrong way. It does **not** persist across a rebuild. **Measured: the final terrain was displaced with 0.502**
+  (fit intercept 20,076 cm = 0.50196 x 40,000) even though the panel read 0.0 in a later session — confirm the
+  field *before* Accept, and verify afterwards with the fit above.
 - **Rect UVs (source-confirmed):** `RectGen.Width = tool Depth` (X), `RectGen.Height = tool Width` (Y)
   (`AddPrimitiveTool.cpp:551`); the short side gets 0 → short/long (`RectangleMeshGenerator.cpp:43`).
-- **Warp Bend is Beta** and its bend/normal direction is not consistent between rebuilds — Epic forum thread on
-  bend direction. If displacement runs the wrong way, fix it with **Attribs → Normals → Invert Normals**, not
-  with a negative intensity.
+- **Warp Bend is Beta** (Epic forum thread on bend direction). **Correction 2026-09-17:** the "outward
+  displacement" blamed on its normals was the 0.502 Base Value — the final mesh's normals point toward the axis,
+  as they should. If displacement ever does run the wrong way, `Attribs → Normals → Invert Normals` is the
+  documented fix, not a negative intensity.
 
 ### Nanite fallback — 7d.4b, measured 2026-09-16
 

@@ -66,3 +66,13 @@ __pycache__/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# ---------------------------------------------------------------
+# Fab / Quixel surface downloads — licensed, cannot be redistributed
+# (re-download from Fab: see project_log.md -> Content sourcing)
+# ---------------------------------------------------------------
+SourceArt/*_1k/
+SourceArt/*_2k/
+SourceArt/*_4k/
+# Unreal's imported copies carry the same texture data, so they stay out too
+Content/Terrain/Megascans/

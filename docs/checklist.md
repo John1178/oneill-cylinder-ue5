@@ -1,11 +1,11 @@
 # O'Neill Cylinder — Project Checklist
 
-*rev 18 · 2026-09-16 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
+*rev 19 · 2026-09-22 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
 measurements) · **`project_log.md`** (decisions, history) · **`layer_contract.md`** (system design).
 
 > The one rolling checklist for the whole project. Corrections land here, nowhere else.
 
-**Open: 66 — Publish 1: 37 · Later: 29.** Updated Wed 16 Sep 2026.
+**Open: 61 — Publish 1: 32 · Later: 29.** Updated Tue 22 Sep 2026.
 
 **Two releases:** Publish 1 = the PCG tool (greybox), then apply. Later = colony polish; nothing in
 Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
@@ -15,7 +15,7 @@ Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
 | # | job | open | when |
 |---|---|---|---|
 | 1 | ~~Swappable surface~~ | ✅ | closed Wed 9 |
-| **7d** | **Terrain on the belt** | 8 | **Week 5 — checkpoint Fri 18 Sep** |
+| **7d** | **Terrain on the belt** | 3 | **Week 5 — checkpoint Fri 18 Sep** |
 | 7 | Design leftovers — 7b-new · 7c · 7e | 3 | Week 6-7 |
 | 6 | DataTable test edits -> xlsx | 1 | Week 5 |
 | 8 | Zoning | 4 | Week 6 *(Week 5 if terrain finishes early)* |
@@ -60,17 +60,17 @@ Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
 Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules.md` → Terrain · Decision: `project_log.md` → Terrain
 
 - [x] ✅ Method settled — Gaea → Modeling Mode → PCG reads; spike passed 2026-09-14
-- [x] ✅ 4. Full sheet built 2026-09-16 — 567k tris, on the belt → `ue_working_rules.md` → Terrain
+- [x] ✅ 4. Full sheet built 2026-09-16 — 567k tris, on the belt, 565-935 m from the axis
 - [x] ✅ 4b. Nanite on, fallback 100% (567k), collision Complex As Simple — 2026-09-16
 - [x] ✅ 5. Gaea relief — valley + edge mountains + river, done 2026-09-15 (build 018) → `gaea.md` → Final graph
 - [ ] ⬜ 5b. ~~City plateaus~~ **deferred 2026-09-15** — PCG follows the natural valley (city zone 94% under 10°); revisit after the L2 tile-seam test
-- [ ] ⬜ 7. Point L0 `SurfaceMesh` at the terrain
-- [ ] ⬜ 8. Retune `SamplingRadius`
-- [ ] ⬜ **CHECKPOINT Fri 18 Sep** — terrain on the belt, PCG samples it
+- [x] ✅ 7. L0 points at the terrain — 64 instances land 731.8-944.2 m from the axis, 2026-09-16
+- [x] ✅ 8. Retuned — radius 1000, density 10.0; 2,336 points, 20 m min spacing, 2026-09-16
+- [x] ✅ **CHECKPOINT met 2026-09-16 (2 days early)** — terrain on the belt, PCG samples it
 - [ ] ⬜ 9. Gaea masks into PCG
 - [ ] ⬜ 10. Slope rules — per-point up, not `Normal To Density` (replaces plateaus: streets/buildings only on gentle ground)
-- [ ] ⬜ 11. Gaea mask set — slope, soil, flow, river → EXR (one set feeds material + PCG; city zones come from zoning, job 8)
-- [ ] ⬜ 12. `M_Terrain` — blend by the mask set `[after the terrain mesh]`
+- [x] ✅ 11. Gaea mask set — mountain, rock, soil (build 021) + river/flow/slope from 018; imported to `/Game/Terrain/Mask/` 2026-09-18
+- [x] ✅ 12. Terrain material — `M_Terrain_Master` + `MI_Terrain_Residential`, signed off 2026-09-22
 - [ ] ⬜ 6. Water sheet at constant radius `[Later]`
 
 ## 7. Design leftovers
