@@ -2,9 +2,9 @@ Name,Category,Zone,Belt,Mesh,Weight,RotationMode,Clearance,Source
 BLD_001,Building,Residential,All,/Game/Meshes/Placeholders/SM_Cube.SM_Cube,1,AlignToRoad,2,Marketplace
 BLD_002,Building,Residential,A,/Game/Meshes/Modules/SM_Residential_Block_Mid.SM_Residential_Block_Mid,0.6,AlignToRoad,2,Marketplace
 BLD_003,Building,Residential,A,/Game/Meshes/Modules/SM_Residential_Terrace.SM_Residential_Terrace,0.4,AlignToRoad,2,Marketplace
-BLD_004,Building,Industrial,All,/Game/Meshes/Placeholders/SM_Cube.SM_Cube,1,AlignToRoad,2,Marketplace
+BLD_004,Building,Industrial,All,/Game/StarterContent/Shapes/Shape_Cylinder.Shape_Cylinder,1,AlignToRoad,2,Marketplace
 BLD_005,Building,Industrial,B,/Game/Meshes/Modules/SM_Industrial_Processing.SM_Industrial_Processing,0.5,AlignToRoad,2,Marketplace
-BLD_006,Building,Service,A,/Game/Meshes/Placeholders/SM_Cube.SM_Cube,0.8,AlignToRoad,2,Marketplace
+BLD_006,Building,Service,A,/Game/Meshes/Placeholders/SM_Cone.SM_Cone,0.8,AlignToRoad,2,Marketplace
 BLD_007,Building,Service,All,/Game/Meshes/Modules/SM_Service_Utility_Block.SM_Service_Utility_Block,0.6,AlignToRoad,2,Marketplace
 STR_001,Structural Shell,-,All,/Game/Meshes/Modules/SM_Hull_Rib_Straight.SM_Hull_Rib_Straight,1,Fixed,0,Model
 STR_002,Structural Shell,-,All,/Game/Meshes/Modules/SM_Hull_Rib_Junction.SM_Hull_Rib_Junction,0.4,Fixed,0,Model
@@ -23,7 +23,7 @@ VEG_003,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Tree_Conifer.SM_Tree_Co
 VEG_004,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Shrub_Cluster.SM_Shrub_Cluster,1,Free,1,Megascans
 VEG_005,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_GroundCover_Grass.SM_GroundCover_Grass,1,Free,1,Megascans
 VEG_006,Greenery & Terrain,-,A,/Game/Meshes/Modules/SM_GroundCover_Fern.SM_GroundCover_Fern,0.7,Free,1,Megascans
-VEG_007,Greenery & Terrain,-,All,/Game/Meshes/Modules/SM_Crop_Row_Agricultural.SM_Crop_Row_Agricultural,0.8,Free,1,Megascans
+VEG_007,Greenery & Terrain,Agriculture,All,/Game/Meshes/Modules/SM_Crop_Row_Agricultural.SM_Crop_Row_Agricultural,0.8,Free,1,Megascans
 VEG_008,Greenery & Terrain,-,A,/Game/Meshes/Modules/SM_Planter_Box_Urban.SM_Planter_Box_Urban,0.5,Free,1,Marketplace
 INF_001,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_Pipe_Straight_Large.SM_Pipe_Straight_Large,1,AlignToRoad,0.5,Marketplace
 INF_002,Infrastructure & Mechanical,-,All,/Game/Meshes/Modules/SM_Pipe_Elbow.SM_Pipe_Elbow,0.6,AlignToRoad,0.5,Marketplace

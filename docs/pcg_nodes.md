@@ -4675,8 +4675,11 @@ Facts measured in `Space_Colony` or read from source this session. Full context:
 PCG_SurfaceTest
   Subgraph (SG_SurfaceSource) -> Transform Points -> Match And Set Attributes <- Load Data Table
                                                      -> Static Mesh Spawner
+PCG_Vegetation  (7d.9, on PCGVolume2)
+  Subgraph (SG_SurfaceSource) .Out 1 -> Multiply (UV -> MaskUV) -> Output
 SG_SurfaceSource  (L0)
-  Mesh Sampler --> Copy Points <-- Get Actor Data (By Tag)
+  Mesh Sampler (Extract UV -> `UV`, channel 0) --> Copy Points <-- Get Actor Data (By Tag)
+  Copy Points -> Output pin `Out 1`   (the `Out` pin carries nothing)
   8 x Get Graph Parameter: SurfaceMesh, SurfaceTag, SamplingRadius, Max Num Samples,
                            Sub Sample Density, Requested LOD Type, Remove Hidden Triangles, Seed
 ```
@@ -4687,7 +4690,7 @@ SG_SurfaceSource  (L0)
 |---|---|---|
 | **Mesh Sampler** | `Requested LOD Type = Render Data` samples LOD 0 of the render data — on a **Nanite** mesh that is the **fallback**, not the Nanite geometry | [src] `PCGMeshSampler.h` default `RenderData`; measured: Fallback Target `Auto` cut LOD 0 from 567,000 to **1,837** tris |
 | **Mesh Sampler** | point spacing is **at least 2 × Sampling Radius** | [src] tooltip; measured radius 1000 → min spacing **20.0 m** |
-| **Mesh Sampler** | `Max Num Samples = 0` means **no limit**, not zero points | [src] *"If 0 or default value, mesh will be maximally sampled"*; measured 2,336 points at 0 |
+| **Mesh Sampler** | `Max Num Samples = 0` means **no limit**, not zero points — it fills the whole surface | [src] *"If 0 or default value, mesh will be maximally sampled"*, loop `MeshSurfacePointSampling.cpp:377-427`; measured 2026-09-22: **17,066** points at radius 1000, nearest neighbour 20.0–26.2 m (an earlier 2,336 was not a full fill) |
 | **Mesh Sampler** | the node's stock `Max Num Samples` (500) caps a large surface | measured: 7.9 km belt starved at 500 |
 | **Mesh Sampler** | `Remove Hidden Triangles` only runs when `Voxelize` is on | [src] `EditCondition = bVoxelize` — with Voxelize off it does nothing |
 | **Mesh Sampler** | two seeds exist: `Sampling Options → Random Seed` and the node `Seed` (needs `Use Seed`) | [src] class properties — check which one a Seed parameter drives |
@@ -4696,6 +4699,10 @@ SG_SurfaceSource  (L0)
 | **Transform Points** | `Absolute Scale` off = scale multiplies | [src]; `PCG_SurfaceTest` uses relative 50 |
 | **Normal To Density** | compares every point against **one fixed vector** (`UpVector`) — wrong on a cylinder | [src] `Normal` default `FVector::UpVector`; use per-point up with Attribute Vector Op instead (7d.10) |
 | **Get Graph Parameter** | a newly added graph parameter starts at **0** and is immediately marked overridden, silently replacing the node's working value | measured 2026-09-16 on `SG_SurfaceSource` |
+| **Subgraph** `SG_SurfaceSource` | the points leave on **`Out 1`**; `Out` is empty — wiring `Out` gives no points and **no error** | measured 2026-09-22: output node pins `Out` 0 edges, `Out1` 1 edge; `PCG_Vegetation` wired to `Out` → Multiply got nothing (a maths op with no data on its main input returns nothing, `PCGMetadataOpElementBase.cpp:639-643`) |
+| **Attribute Maths Op** *(all metadata ops)* | an unconnected input takes a **typed-in constant** — right-click the pin → *Activate Inline Constant* · *Convert to Vector2*; connecting one input switches the others on | [src] `PCGEditorGraphNodeBase.cpp:251-285, 1405-1414`; allowed types `PCGMetadataHelpers.h:107` (no Float / Quat / Transform); marked experimental |
+| **Get Texture Data** | the default **GPU read returns a low mip** — a 1024 mask came back at **64 px** (one texel ≈ 123 m), so mask edges bleed and points with a true value of 0 survive. Fix: tick **Force Editor Only CPU Sampling** | measured 2026-09-22 on the mountain mask: PCG densities matched a 64-px downsample to a median of 0.0005; with CPU sampling on they match the 1024 file (median 0.0005, max 0.002 = the 8-bit step) and the 2,196 false survivors vanished. PCG duplicates the texture with NoMipmaps + uncompressed to do it (`PCGTextureData.cpp:562-587`) |
+| **Sample Texture** | drops every point whose sampled density is **0** — black mask = no points, not density-0 points | [src] `PCGTextureData.cpp:434` returns `OutDensity > 0 \|\| bKeepZeroDensityPoints`; `PCGSampleTexture.cpp` writes a point only when that is true |
 
 ### Planned nodes (checked to exist in 5.7.4)
 

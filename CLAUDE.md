@@ -24,8 +24,9 @@ Solo **UE 5.7.4** O'Neill cylinder portfolio piece aimed at **Technical Artist (
 
 ## 2. How to work with this user
 
-- **Search before answering.** Anything about tool/node behaviour, settings, limits, workflows: check official
-  docs, engine source, or the app's own example files first, cite it, and label anything unverified.
+- **Never answer from my own reasoning — look it up first.** Before answering any question: (1) our `docs/*.md`,
+  (2) search online (official docs, Epic forums), (3) engine source or the app's own example files. Cite what was
+  read; label anything unverified. User rule, repeated 2026-09-22.
 - **Propose before applying.** Show what will change (docs, structure, judgment calls) and wait for OK. Small
   factual logging of measured results can go straight in, but say so.
 - **Keep `checklist.md` terse.** Evidence and numbers live in the other docs.

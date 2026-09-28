@@ -156,6 +156,13 @@ Evidence used (searched, not reasoned):
 - **Not found:** any studio or recruiter source saying "tool only" vs "tool in an environment".
   Keeping the colony as the tool's stage is our inference from the postings, not a sourced rule.
 
+### One belt first — 2026-09-24
+
+Everything (terrain, masks, vegetation, zoning, streets, lots) is built and proven on the
+**Residential belt only**. The Industrial and Agriculture belts are not touched until the system
+runs end to end — the same graphs then apply to them by swapping the surface mesh, which is what
+job 15 is for. Stated by the user: once the system works, the rest follows.
+
 ### Terrain — PCG reads it, native tools shape it — 2026-09-14
 A separate curved mesh on the belt, shaped only with Gaea and Unreal Modeling Mode; PCG samples it
 and never writes it. PCG 5.7 has no terrain-writing node, so a custom one would be a Geometry Script

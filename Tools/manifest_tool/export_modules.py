@@ -49,7 +49,7 @@ VALID_CATEGORIES = [
     "Debris & Wear Kit",
 ]
 
-VALID_ZONES = ["Residential", "Industrial", "Service", "-"]
+VALID_ZONES = ["Residential", "Industrial", "Service", "Agriculture", "-"]
 VALID_BELTS = ["A", "B", "All"]
 VALID_ROTATION_MODES = ["Free", "AlignToRoad", "Fixed"]
 VALID_SOURCES = ["Model", "Megascans", "Marketplace", "Scan"]
@@ -210,7 +210,9 @@ def check_zone_rules(rows):
     - A Building MUST have a real zone (not '-'), otherwise the manifest's
         zone_ratios can never select it and it will never be placed.
     - A non-Building SHOULD have '-'. A tree tagged 'Residential' is a
-        mistake, not a feature.
+        mistake, not a feature. The exception is 'Agriculture': farm content
+        (crop rows) is Greenery & Terrain, and a farm stretch selects it by
+        zone like any other stretch.
     """
     errors = []
 
@@ -221,7 +223,7 @@ def check_zone_rules(rows):
         if category == "Building" and zone == "-":
             errors.append(f"row {module['_row']}: building has no zone")
 
-        if category != "Building" and zone != "-":
+        if category != "Building" and zone != "-" and zone != "Agriculture":
             errors.append(f"row {module['_row']}: only building should have zone")
 
     return errors

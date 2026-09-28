@@ -914,6 +914,12 @@ roughly as 1/radius^2.
 the new parameters taking effect. The tooltip says a finite value is a *request*, so it plausibly changes
 sampler behaviour even below the count — most likely cause, but untested. One-run check: density 10, max 5000, compare.
 
+**Re-measured 2026-09-22 — use 17,066, not 2,336.** `PCG_Vegetation`, same radius 1000 / density 10 / max 0
+(LOD MaxAvailable, seed 3): **17,066 points**, nearest neighbour **20.0–26.2 m** (median 20.9) — the whole belt is
+filled. That is what the code does at max 0: keep placing points until no spot 20 m clear of every point is left
+(`MeshSurfacePointSampling.cpp:377-427`). 2,336 points on ~7.9 km² would sit ~58 m apart, so the 09-16 run was
+not a full fill; its cause is unknown.
+
 **Correction (2026-09-16):** an earlier note said Remove Hidden Triangles discarded the belt's outer shell face.
 It cannot have — it only runs after voxelization, and Voxelize is off. The outer-shell filtering in
 `layer_contract.md` must come from elsewhere; re-check before relying on it.
@@ -921,6 +927,134 @@ It cannot have — it only runs after voxelization, and Voxelize is off. The out
 **Trap:** adding a user parameter initialises it to **zero** and immediately marks it overridden, so exposing
 a working setting silently replaces it with 0 / False. Set the value *and* the subgraph's own default straight
 after exposing it — the default is what a fresh PCG component inherits (job 15's second belt, job 20's panel).
+
+### Vegetation from the masks — trees (job 16, started 2026-09-22)
+
+`PCG_Vegetation` on `PCGVolume2`. Chain: mask UV block (above) → `Sample Texture` mountain (density) →
+`Sample Texture` slope (density channel off, merge Ignore) → `Attribute Cast` `$Color.R` → `Slope` →
+`Density Filter` 0.05-0.80 → `Point Filter Range` `Slope` 0-0.333 → `Transform Points` scale 8-12 →
+`Static Mesh Spawner` (`/Engine/BasicShapes/Cone` placeholder).
+
+| fact | measured |
+|---|---|
+| mountain mask = a **height ramp** starting at ~100 m | 0 over 70% of the belt (27-101 m); 0.05-0.80 = 103-162 m; >0.80 = 169-286 m |
+| the treeline band (0.05-0.80, slope < 30°) | 21% of the belt → **3,607 trees**, ground 104-162 m, slope median 13.2° |
+| slope mask vs the real mesh | median 21.0° geometric vs 21.1° from the mask on the same points; 89% within 5° |
+| **`RockMap` and `Soil` are variation maps, not coverage masks** | RockMap median 0.89 (84% of the belt > 0.5), Soil 0.34-0.85 (99% > 0.5) — do not gate placement with them |
+| forest is patchy along the belt | by eighths: 25%, 57%, 0.1%, 0%, 36%, 10%, 1.5%, 41% band coverage — sections 3, 4, 7 never rise above ~100 m |
+
+Point density comes from the subgraph's `SamplingRadius`: 1000 → 17,066 points (20 m apart, ~20 per hectare).
+Count scales a little slower than 1/radius²: measured 450 → 14,717 trees (9 m apart, 81 stems/ha) and
+**320 → 30,866 trees** (~170 stems/ha), where 1/r² predicted 17,800 and 36,000 — the estimate runs ~15% high.
+
+**Final tree pass (2026-09-22):** radius 320 · three engine sample meshes at equal weight —
+`/PCG/SampleContent/SimpleForest/Meshes/PCG_Tree_01` (9.6 m), `_02` (12.5 m), `_03` (15.5 m), measured split
+33.6 / 33.5 / 32.9% · `Transform Points` scale 0.8-1.2, yaw random 360°. Reference: planted forest is
+1,000-2,500 stems/ha, landscape planting ~400/ha, natural stands ~1,000/ha.
+**Standing upright on the cylinder — job 7d.10, done 2026-09-22.** Mesh Sampler points are normal-aligned, so
+anything spawned on them leans by the slope angle (measured: median 13.3° off the colony's up, max 32.3°,
+41% over 15°). Real trunks follow gravity, not the ground (negative gravitropism). Two nodes fix it, and
+streets and buildings will reuse them:
+
+1. `Attribute Maths Op` → **Mul Add** (A + B × C): In A = Vector `(-221760.55, 0, 175805.3)` (the cylinder
+   axis), In B = the points with `Input Source 2` = `$Position`, In C = Vector `(-1, 0, -1)` → `Up`.
+   Result per point: `(axisX − x, 0, axisZ − z)` — straight at the axis, the along-axis part removed.
+2. `Make Rotator Attribute` → **MakeRotFromZ**: `Up` → `$Rotation`. `MakeFromZ` normalises internally
+   (`RotationMatrix.h:104-114`) and a Rotator is a legal write into the point's quaternion rotation.
+
+Put them before `Transform Points`, so its relative yaw randomises around the corrected up. Measured after:
+**lean 0.00° median / 0.00° max** on 30,866 instances, yaw still spread over all 12 sectors, positions unchanged.
+Keep rocks and bushes normal-aligned — they sit on the ground.
+
+### `SG_TerrainMasks` — the shared surface description (2026-09-25)
+
+Both consumers read the masks through one subgraph, so the UV maths lives in exactly one place:
+
+```
+Input → UV × (0.1266, 1.008) → + 0.000488 → Min 0.9999 → MaskUV
+      → Sample Texture (MountainMask) → Attribute Cast $Color.R → Mountain
+      → Sample Texture (Slope)        → Attribute Cast $Color.R → Slope        → Output
+```
+
+Both `Get Texture Data` nodes: **Force Editor Only CPU Sampling on**, **Use Density Source Channel off**;
+both `Sample Texture`: UV Coordinates / `MaskUV` / Clamp / **Density Merge Ignore**. Density is deliberately left
+untouched — job 16 needs `$Density` for the artist's density authoring, so masks must not squat on it.
+Refactor verified behaviour-preserving: the tree pass came back with the same 30,866 instances and the same
+mesh split, `Mountain`/`Slope` matching the files to a median of 0.00056.
+
+**Consumers and their gates (2026-09-25):**
+
+| graph | volume | gate | result |
+|---|---|---|---|
+| `PCG_Vegetation` | `PCGVolume` | `Mountain` 0.05–0.80 · `Slope` 0–0.333 (30°) | 30,866 trees on the flanks |
+| `PCG_SurfaceTest` | `PCGVolume_Test` | `Mountain` 0–0.05 · `Slope` 0–0.111 (10°) | 1,372 points / 798 instances in the valley |
+
+Disjoint by construction: buildings within 5 m of a tree went **313 → 0**, closest pair 5.4 m, and buildings on
+slopes over 10° went 493 → 0 (they reached 49.7° before). Both layers also run the upright pair
+(Mul Add → MakeRotFromZ), measured lean 0.00° on both.
+
+**World position → mask UV** (for offline checks; the belt's Y centre offset is easy to forget — I dropped it
+once and read the masks 491 m down the belt):
+
+```
+xl, yl, zl = X − (−221760.55), Y − 49112.33, Z − 99361.38     # arc centre Z, not the cylinder axis
+u = 0.5 + atan2(xl, 95302 − zl) / (π/3)
+v = (yl + 395010) / 790020 × (99000 / 99800)
+MaskUV = min(u × 0.1266 + 0.000488, 0.9999), min(v × 1.008 + 0.000488, 0.9999)
+```
+Validated against PCG's own `Mountain`/`Slope` on 30,866 points: median error 0.00059.
+
+### Streets (L2) — job 17, first pass 2026-09-25
+
+`Road_Main` actor (tag `Road`), one hand-drawn spline: 5 points, 2,287 m, drawn with the **PCG Editor Mode →
+Draw Spline** tool (Shift+9 → Spline palette). The tool raycasts onto the terrain, but it attaches the spline
+to **whatever actor is selected** — twice it landed on a hull plate and on the terrain actor. Draw with nothing
+selected, or move the component afterwards.
+
+Chain in `PCG_SurfaceTest`:
+`Get Spline Data` (All World Actors, ByTag `Road`) → `Spline Sampler` (On Spline · Distance · 500 cm) →
+`Distance` **Target**; the city points (after the Mountain/Slope gates) go into `Distance` **Source**. It writes
+an attribute named `Distance` by default. Then `Point Filter Range` on `Distance` 0–4000 = a 40 m frontage band.
+
+| measured | |
+|---|---|
+| points along the road | **302** (Residential 68 · Service 234 · Industrial 0 — no road in that stretch) |
+| distance range | 0.6 m – 40.0 m, median 20 m — the band is exact |
+| spawned | 157 instances; the gap is the 4 rows whose meshes don't exist (job 14) |
+| sampling radius | 3000 → **1000** for the city, or the band only catches ~39 candidates |
+
+**Traps:**
+- `Spawn Spline Mesh` **ignores the spline point scale** — measured 1 × 1 whatever the points say. With
+  *Scale Mesh To Bounds* on it divides by the mesh extent and gives 0.02 (a 2 cm wire). The cross-section must
+  come from the **mesh asset**: author a tile ~100 (X) × 1200 (Y) × 20 (Z) cm with the outer thirds raised, so
+  every road gets kerb and pavement for free. Currently a 1 m cube bar, placeholder. Street furniture on the
+  pavement is a second `Distance` band (≈300–800 cm) feeding lamps and planters, not part of the tile.
+- The road **sinks into the terrain between control points** — the spline chords cut through rises. Needs a Z
+  offset or a projection pass.
+- `Distance` (spatial, Source/Target pins) is a different node from **Vector: Distance** (Attribute Vector Op).
+
+### Zoning (L1) — job 8, checkpoint met 2026-09-24
+
+`PCG_SurfaceTest` on `PCGVolume_Test` (the vegetation graph runs on its own volume). Belt Y spans
+**−345,898 … 444,122** (measured live), so the thirds fall at −82,558 / 180,782, rounded to −80,000 / 180,000.
+
+Chain: `SG Surface Source` **Out 1** → 3 × `Point Filter Range` on `$Position.Y`, constant Double bounds
+(−400000/−80000 · −80000/180000 · 180000/500000, **Max not inclusive** on the first two so a point on a
+boundary can't land in two zones) → 3 × `Add Attribute` (String `Residential` / `Service` / `Industrial` →
+`Zone`) → `Merge Points` → `Transform Points` → `Match And Set Attributes` (**Match Attributes on**,
+`Zone` → `Zone`, **Keep Unmatched off**) ← `Load Data Table` → `Static Mesh Spawner`.
+
+| measured | |
+|---|---|
+| points | 2,432 — Residential 806 · Service 796 · Industrial 830, **no crossover** |
+| attributes gained | `Zone`, plus `Category`, `Belt`, `Mesh`, `RotationMode`, `Clearance`, `Source` from the table |
+| spawned | 1,420 instances — cube 421 · cylinder 536 · cone 463 |
+| the 1,012 gap | 4 of the 7 building rows (`BLD_002/003/005/007`) point at meshes that don't exist yet (job 14); a point that draws a missing mesh spawns nothing |
+| weighting | spawn split matches the row weights within ~2 points (52/65/58% vs 52/67/57% expected) |
+
+Traps: `Add Attribute` uses its typed-in constant only while its **Attributes pin is unconnected**
+(`PCGCreateAttribute.cpp:402`) · ticking **Use Constant Threshold** hides the filter's Min/Max **pins**, which
+is expected · `Zone` is a **String** on both sides; PCG broadcasts Name↔String either way.
 
 ### Final state of the terrain sheet (2026-09-16) ✅
 
@@ -971,6 +1105,14 @@ offset below). Build 018 cannot be regenerated (the graph changed before it was 
 - **Clamp, not Wrap.** With the offset, V reaches 1.000408 at the far end; Wrap blends image row 0 into the last
   ~7 m. Set the mask texture's `X-axis / Y-axis Tiling Method` (Advanced, `Texture2D.h:62-67`); the Texture Sample
   node's default `Sampler Source` is *From texture asset* (`EngineTypes.h:283`).
+- **The mask chain in PCG (built + verified 2026-09-22, `PCG_Vegetation`):** `SG_SurfaceSource` **`Out 1`** →
+  Attribute Maths *Multiply* (`UV` × Vector2 0.1266, 1.008 → `MaskUV`) → *Add* (+0.000488) → *Min* (0.9999) →
+  `Sample Texture` (UV Coordinates, `MaskUV`, Clamp) ← `Get Texture Data` (mask, Density Source Channel **Red**,
+  **Force Editor Only CPU Sampling on**). Constants are typed on the empty pin (right-click → Convert to Vector 2);
+  the pin box rounds the display (0.1266 shows as 0.127). Verified on 17,066 points: `MaskUV` matches the formula
+  exactly, and the sampled density matches the EXR to a median of 0.0005 (the 8-bit step is 0.0039).
+- **Without `Force Editor Only CPU Sampling` the mask reads at 64 px** — see `pcg_nodes.md` → Traps. It cost 2,196
+  phantom points (true mask value 0) out of 7,525 before it was found.
 - **PCG edge trap:** `Sample Texture` (UVCoordinates) clamps to 0–1 (`PCGSampleTexture.cpp:151-155`), then
   `SamplePointLocal` takes `Frac` (`PCGTextureData.cpp:426-427`) — a UV of exactly 1.0 reads row **0**. Cap the mask
   UV at 0.9999 before sampling (the last ~3 m of the belt). Get Texture Data filter default: Bilinear
@@ -1100,6 +1242,10 @@ Fab Standard License does not allow redistributing the files, and the imported `
   = `Fresnel` on `VertexNormalWS` (base 0, exponent = `Grazing Falloff`, default 3), driving
   **Grazing Roughness Boost** (roughness → 1) and **Grazing Specular Reduction** (specular × (1 − r·mask)) on
   all eight surfaces, group 06. Both default 0 (off). 346 nodes · 705 pixel instr · 49 reads · 4 samplers.
+- **Darker and duller facing the sun after the fix — expected, not exposure.** `PPV_Global` locks exposure
+  (min = max = 8.64 EV100). Facing the sun you see the slopes turned away from it plus shadows stretching
+  toward you, and the removed sheen was most of the brightness there. Real grass glows when backlit because
+  light passes through the blades — a flat ground can't; two-sided foliage grass meshes can.
 - The remaining gap is geometry — a flat plane can't read as grass; grass meshes via PCG come next.
 
 **Diagnosis tooling traps:** console `ShowFlag.*` commands don't reach editor viewports; the MCP

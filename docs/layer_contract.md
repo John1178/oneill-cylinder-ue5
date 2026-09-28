@@ -6,6 +6,57 @@ the contract first, not the graph.*
 
 ---
 
+## Glossary — read this before arguing about a layer
+
+*Added 2026-09-25 after "zone" was used for two different things in the same conversation.*
+
+**The ground**
+
+| term | meaning |
+|---|---|
+| **Belt** | one of the three landmasses inside the cylinder. Everything is built on the **Residential belt**, 7,900 × 998 m (`project_log.md` → One belt first). |
+| **Surface (L0)** | whatever mesh PCG samples — the terrain sheet here. Swappable: plane or cylinder, same graph. |
+| **Mask** | a greyscale image from Gaea describing the terrain: mountain, slope, river, bank, rock, soil. |
+| **Point** | one candidate position carrying attributes. The unit that flows through every layer. |
+| **Attribute** | a named value on a point: `UV`, `MaskUV`, `Mountain`, `Slope`, `Zone`, `Density`. |
+| **Spacing / sampling radius** | distance between candidate points; sets the *maximum* packing (city 60 m, trees 6.4 m). |
+
+**The city**
+
+| term | meaning |
+|---|---|
+| **Zone** | the *type* of place — Residential / Service / Industrial. Decides **which modules** may spawn. A label, not a space. |
+| **Density** | 0–1 survival chance per candidate point. Decides **how many** buildings. Not a count. |
+| **Scatter / Rows** | the one logic switch in the system: organic Poisson, or a regular grid for farm and orchard. |
+| **Road** | an artist-drawn spline (L2). Gives points `DistToRoad` and `RoadDir`. |
+| **Block** | the area enclosed by roads (L3 stage 2). **A space, not a type** — this is the word for "between the roads". |
+| **Frontage** | the band along a road where buildings line up; block interiors stay empty. L3 stage 1. |
+| **Lot** | one building's parcel inside a block (`LotSize`). Stage 2. |
+| **Zone stretch** | a run of belt carrying one Zone. (Say this rather than "district", which appears nowhere else.) |
+
+**The content**
+
+| term | meaning |
+|---|---|
+| **Module** | a row in `module_list.xlsx` → `DT_Modules`: mesh path, weight, zone. 37 rows, 13 meshes exist. |
+| **Weight** | relative chance of a module being picked among those matching the zone. |
+| **`Belt` column** | *in the spreadsheet only*: quality tier A hero / B support / All, read by the **validator**, never by PCG. Not the landmass. |
+| **Instance** | the spawned mesh in the level (ISM). |
+| **Preset** | a named set of numbers — zone split + density + Scatter/Rows. Data, not logic. |
+
+**The plumbing**
+
+| term | meaning |
+|---|---|
+| **Graph** | a PCG asset: `PCG_SurfaceTest` (city), `PCG_Vegetation` (trees). |
+| **Subgraph** | reusable graph inside others: `SG_SurfaceSource` (sampling), `SG_TerrainMasks` (masks). |
+| **Volume** | the actor running a graph: `PCGVolume_Test` (city), `PCGVolume` (trees). |
+
+The two that get confused: **Zone is a type, Block is a space** · **Belt is the landmass everywhere
+except the spreadsheet column, where it is a quality tier.**
+
+---
+
 ## Who this is for
 
 **One pipeline, three stages.** Not three audiences — the same tool at three moments in a
@@ -323,11 +374,22 @@ without touching L0, L1, L2, L4 or L5. Retained below for the reasoning:
 subdivision slots in above L3 later without touching any other layer. That is the contract
 earning its keep.*
 
-**2. Belt/Zone schema.** The spreadsheet has `Belt = A/B/All` and `Zone = Residential/Industrial/
-Service/-`, but there are **three** belt meshes named Residential/Industrial/Agriculture.
-`BLD_002` says Belt `A`, which matches no mesh. `BLD_006` says Zone `Service`, which does not
-exist. Proposed: **`Belt` becomes Residential/Industrial/Agriculture/All and `Zone` is deleted** —
-one fact, stored once. Must be settled before L4 can filter by belt.
+**2. Belt/Zone schema — RESOLVED 2026-09-10, text corrected 2026-09-24.** The two columns mean
+different things and both are right as authored (`module_list.xlsx` ▸ Column Guide; counts measured
+over the 37 rows):
+
+| column | meaning | values in the sheet | who reads it |
+|---|---|---|---|
+| `Zone` | which zone a **building** belongs to; `-` for anything that isn't a building | Residential 3 · Industrial 2 · Service 2 · `-` 30 | **PCG** (job 8 zoning, via `Match And Set Attributes`) |
+| `Belt` | quality tier — A hero, B support, All | All 29 · A 7 · B 1 | the **validator** only, to catch a hero module used on a support belt |
+
+An earlier proposal here (`Belt` → Residential/Industrial/Agriculture/All, `Zone` deleted) misread
+both columns — `A` is a tier, not a mesh name, and `Service` is a deliberate zone — and was
+**withdrawn** (checklist 7b). Job 8 was never blocked by it.
+
+**Still open (checklist 7b-new):** the agriculture belt has no `Zone` value. Either add `Agriculture`
+as a fourth zone, or drive farm placement from `Category` (*Greenery & Terrain*, 8 modules).
+Needed for the Farm preset in job 19; does not block job 8.
 
 **3. Per-instance override / lock — deferred.** See *Who this is for*. Stage 3 (environment
 artist) needs generate-then-hand-edit with overrides surviving regeneration. Same underlying

@@ -1,14 +1,17 @@
 # O'Neill Cylinder — Project Checklist
 
-*rev 19 · 2026-09-22 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
+*rev 24 · 2026-09-25 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
 measurements) · **`project_log.md`** (decisions, history) · **`layer_contract.md`** (system design).
 
 > The one rolling checklist for the whole project. Corrections land here, nowhere else.
 
-**Open: 61 — Publish 1: 32 · Later: 29.** Updated Tue 22 Sep 2026.
+**Open: 62 — Publish 1: 23 · Later: 39.** Updated Fri 25 Sep 2026.
 
 **Two releases:** Publish 1 = the PCG tool (greybox), then apply. Later = colony polish; nothing in
 Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
+
+**One belt first.** Build and prove everything on the **Residential** belt; the other two only after the
+system runs end to end (job 15). Why: `project_log.md` → One belt first.
 
 ### Publish 1 — PCG tool
 
@@ -16,11 +19,11 @@ Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
 |---|---|---|---|
 | 1 | ~~Swappable surface~~ | ✅ | closed Wed 9 |
 | **7d** | **Terrain on the belt** | 3 | **Week 5 — checkpoint Fri 18 Sep** |
-| 7 | Design leftovers — 7b-new · 7c · 7e | 3 | Week 6-7 |
-| 6 | DataTable test edits -> xlsx | 1 | Week 5 |
-| 8 | Zoning | 4 | Week 6 *(Week 5 if terrain finishes early)* |
-| 16 | L1 Density | 4 | Week 6 |
-| 17 | L2 Streets | 4 | Week 6-7 |
+| 7 | Design leftovers — 7b-new · 7c | 2 | Week 6-7 |
+| 6 | ~~DataTable test edits -> xlsx~~ | ✅ | closed Thu 24 |
+| 8 | ~~Zoning~~ | ✅ | closed Thu 24 |
+| 16 | L1 Density | 3 | Week 6 |
+| 17 | L2 Streets | 3 | Week 6-7 |
 | 18 | L3 Lots — frontage-only | 1 | Week 7 |
 | 19 | Presets | 2 | Week 7 |
 | 20 | Editor panel + reimport script | 3 | Week 7 |
@@ -45,6 +48,8 @@ Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
 | 21 | Optimisation pass | 3 |
 | 22 | Polish — hero shots | 2 |
 | 23 | Colony delivery | 2 |
+| T | Terrain look — leftovers | 6 |
+| V | Vegetation polish *(moved out of 16, Week 6)* | 4 |
 | P | Night / day-night | 3 |
 
 ---
@@ -67,10 +72,11 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 - [x] ✅ 7. L0 points at the terrain — 64 instances land 731.8-944.2 m from the axis, 2026-09-16
 - [x] ✅ 8. Retuned — radius 1000, density 10.0; 2,336 points, 20 m min spacing, 2026-09-16
 - [x] ✅ **CHECKPOINT met 2026-09-16 (2 days early)** — terrain on the belt, PCG samples it
-- [ ] ⬜ 9. Gaea masks into PCG
-- [ ] ⬜ 10. Slope rules — per-point up, not `Normal To Density` (replaces plateaus: streets/buildings only on gentle ground)
+- [x] ✅ 9. Gaea masks into PCG — mountain mask on the points, values match the file, 2026-09-22
+- [x] ✅ 10. Slope rules — per-point up (Mul Add → MakeRotFromZ) + slope gate; in **both** graphs 2026-09-25, city capped at 10° → `ue_working_rules.md` → SG_TerrainMasks
 - [x] ✅ 11. Gaea mask set — mountain, rock, soil (build 021) + river/flow/slope from 018; imported to `/Game/Terrain/Mask/` 2026-09-18
 - [x] ✅ 12. Terrain material — `M_Terrain_Master` + `MI_Terrain_Residential`, signed off 2026-09-22
+- [ ] ⬜ 13. Delete the `M_Terrain` v1 backup once the master is proven
 - [ ] ⬜ 6. Water sheet at constant radius `[Later]`
 
 ## 7. Design leftovers
@@ -78,33 +84,36 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 - [x] ✅ Design block → `layer_contract.md`; 7a L3 frontage-only; 7b withdrawn → `project_log.md` → Schema meanings
 - [ ] ⬜ 7b-new. Agriculture belt: add an `Agriculture` zone, or drive it by `Category` `[Week 6 — before Zoning]`
 - [ ] ⬜ 7c. Clearance column — nothing reads it yet `[Week 7 — with L3 Lots]`
-- [ ] ⬜ 7e. Fix `layer_contract.md` Open decision 2 (still lists the withdrawn Belt/Zone rewrite) `[Week 6 — before Zoning]`
+- [x] ✅ 7e. `layer_contract.md` Open decision 2 corrected — Zone = building zoning (PCG reads it), Belt = quality tier (validator only), 2026-09-24
 
 ## 6. Weighted module selection
 
 - [x] ✅ Working 2026-09-10 → `ue_working_rules.md` → InlineEditConditionToggle
-- [ ] ⬜ Move the `BLD_006` / `BLD_004` test edits into the xlsx, or drop them (backups in scratchpad)
+- [x] ✅ `BLD_004` cylinder / `BLD_006` cone mesh paths written into the xlsx + CSV re-exported 2026-09-24 — reimport `DT_Modules` in the editor
 
 ## 8. Zoning (L1) `[Week 6 — or Week 5 if terrain finishes early]`
 
-- [ ] ⬜ Split the belt into zones along Y (hand-authored)
-- [ ] ⬜ Write `Zone` onto each surface point
-- [ ] ⬜ `Match And Set Attributes`: `Zone` → `Zone`
-- [ ] ⬜ **CHECKPOINT** — residential modules only in the residential stretch
+- [x] ✅ Split the belt into zones along Y — thirds at −80,000 / 180,000, 2026-09-24
+- [x] ✅ Write `Zone` onto each surface point — 3 × Add Attribute (String) → Merge Points
+- [x] ✅ `Match And Set Attributes`: `Zone` → `Zone`, Keep Unmatched off
+- [x] ✅ **CHECKPOINT met 2026-09-24** — 2,432 points, 806/796/830 per zone, no crossover → `ue_working_rules.md` → Zoning
 
 ## 16. L1 Density `[Week 6]`
 
 - [ ] ⬜ Write `Density` (0-1) from the Gaea mask (7d.9)
 - [ ] ⬜ Threshold cull
 - [ ] ⬜ `Scatter` / `Rows` switch (Rows = farm, orchard)
-- [ ] ⬜ Vegetation scatter (trees, grass) from the soil + slope masks — no hand painting
+- [x] ✅ Trees from the masks — treeline band + slope rule, 30,866 trees, 2026-09-22
+- *(the rest of the planting moved to Later → job V, 2026-09-24 — not needed for the tool demo)*
 
 ## 17. L2 Streets `[Week 6-7]`
 
-- [ ] ⬜ Artist-drawn splines → `PCG Spline Sampler`
-- [ ] ⬜ Align points to the surface normal; spawn street tiles
-- [ ] ⬜ Write `DistToRoad` + `RoadDir`
-- [ ] ⬜ Test the tile seam at project scale (fallback: shorter tiles or `DeckPlate_Corner`)
+- [x] ✅ Artist-drawn spline → `Get Spline Data` (tag `Road`) → `Spline Sampler`, 2026-09-25
+- [x] ✅ `DistToRoad` via the `Distance` node + 40 m frontage filter — 302 points line the road
+- [ ] ⬜ `RoadDir` — not written yet; needed for `RotationMode = AlignToRoad`
+- [ ] ⬜ Road mesh is a 1 m cube bar — author a road tile **with kerb + pavement** (~100 × 1200 × 20 cm, outer thirds raised) `[polish]`
+- [ ] ⬜ Road floats/sinks between control points — fix: Spline Sampler → `Projection` (target `World Ray Hit Query`) → `Create Spline` → Spawn Spline Mesh `[polish]`
+- [x] ✅ ~~Tile seam test~~ — withdrawn: `Spawn Spline Mesh` bends one mesh along the spline, no tiles, no seams
 
 ## 18. L3 Lots — frontage-only `[Week 7]`
 
@@ -208,6 +217,24 @@ Scoping table: `ue_working_rules.md` → Detail meshes
 
 - [ ] ⬜ Colony video (hero shots, day/night if P is built)
 - [ ] ⬜ Update the breakdown with art + optimisation numbers
+
+## T. Terrain look — leftovers → `ue_working_rules.md` → Terrain material
+
+- [ ] ⬜ Height-blend the layers with the displacement maps
+- [ ] ⬜ RVT so scatter picks up the ground colour
+- [ ] ⬜ Collapse the surface block into `MF_TerrainSurface`
+- [ ] ⬜ Gaea detail normal (Anastomosis → Roughing)
+- [ ] ⬜ Grass diffuse still below Epic's 0.21 — revisit under final lighting
+- [ ] ⬜ Sky light fill for the shaded / backlit side (now 75)
+
+## V. Vegetation polish → `ue_working_rules.md` → Vegetation
+
+Trees are built and upright (job 16); everything below is dressing, not tool features.
+
+- [ ] ⬜ Rocks, bushes, reeds from the masks (no hand painting)
+- [ ] ⬜ Second tree rule for the flat stretches — scattered valley trees / hedgerows from noise, not the mountain mask
+- [ ] ⬜ Grass on runtime generation near the camera (millions of instances otherwise)
+- [ ] ⬜ Swap the engine sample trees for real meshes (Megascans 3D plants, two-sided foliage — gitignored)
 
 ## P. Night / day-night *(parked)*
 
