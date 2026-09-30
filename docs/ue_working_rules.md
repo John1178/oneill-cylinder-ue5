@@ -352,6 +352,28 @@ palette silently did nothing. The asset then could not be deleted — 5 native r
 values, generated instance transforms. If a graph must be written to, close its editor first, and
 expect to verify the result by reopening it.
 
+**Reading the wiring: copy the graph as text.** Python cannot follow edges — `PCGEdge::InputPin` /
+`OutputPin` are protected, so `node.input_pins[i].edges` gives an edge object with nothing readable on
+it. `pin.is_connected()` tells you *that* a pin is wired, never *to what*. The way through: select all in
+the graph (**Ctrl+A, Ctrl+C**) — the PCG editor writes full T3D to the clipboard, ~800 KB for the city
+graph, with every node, its settings values, and `LinkedTo=` pin GUIDs. Read it from the bridge:
+
+```python
+import ctypes
+u, k = ctypes.windll.user32, ctypes.windll.kernel32
+u.GetClipboardData.restype = ctypes.c_void_p          # both restypes are required —
+k.GlobalLock.restype = ctypes.c_void_p                # the default c_int truncates the 64-bit pointer
+k.GlobalLock.argtypes = [ctypes.c_void_p]
+u.OpenClipboard(0); h = u.GetClipboardData(13)        # 13 = CF_UNICODETEXT
+text = ctypes.c_wchar_p(k.GlobalLock(h)).value
+k.GlobalUnlock(h); u.CloseClipboard()
+```
+
+Each `CustomProperties Pin (…)` line carries `PinId`, `PinName`, `Direction`, `LinkedTo=(Node GUID,)`, so
+a pin-GUID → owner map turns the dump into a full edge list. This is how the `RoadDir` mis-wiring was
+found in one pass instead of a screenshot hunt. Node *positions* still come from Python
+(`node.get_node_position()` returns a tuple).
+
 ---
 
 ## Nanite — what it does, what it does NOT do
@@ -1032,6 +1054,91 @@ an attribute named `Distance` by default. Then `Point Filter Range` on `Distance
 - The road **sinks into the terrain between control points** — the spline chords cut through rises. Needs a Z
   offset or a projection pass.
 - `Distance` (spatial, Source/Target pins) is a different node from **Vector: Distance** (Attribute Vector Op).
+
+### Density (L1) — job 16, done 2026-09-28
+
+Density is an **artist input**, not derived: one `Add Attribute` (Double) per zone branch writes `Density`
+(Residential 0.8 · Service 0.5 · Industrial 0.3). A constant alone can't thin anything — a threshold is
+all-or-nothing — so after `Merge Points`:
+
+`Attribute Noise` (Output `Roll`, Mode **Set**, 0-1) → `Point Filter` (`Roll` **Lesser** than threshold
+**attribute** `Density`, Use Constant Threshold off, **Use Spatial Query off**).
+
+A point survives when its roll is under its density, so the number means what it says. Measured: the 8-25 m
+frontage band held 143 points (~32 Residential / ~111 Service) → **83 after density (26 / 57)**, against 26 / 56
+predicted. Those three numbers become the preset knobs in job 19.
+
+**`RoadDir` — solved 2026-09-28, one node.** The `Distance` node already computes the vector we need:
+`MinDistanceVector = TargetShapePos - SourceShapePos` (`PCGDistance.cpp:356-365`), i.e. it points **from the
+building at the nearest road sample**. That is the facing direction directly — no projection, no rotation
+extraction, and no 90° correction (the road *tangent* would have pointed along the carriageway, not at it).
+
+Chain, after the density filter:
+
+`Get Spline Data` → `Spline Sampler` (**Mode Distance, Distance Increment 100**) → 2nd `Distance` node
+**Target**; density filter → its **Source**; Output Attribute `RoadDir`, **Output Distance Vector on**,
+Source/Target Shape **Center** → its Out into `Mul Add` **In B** → `Make Rotator` **Make Rot From ZX**,
+Input Source 1 `Up` (Z), Input Source 2 `RoadDir` (X), *both* pins fed from Mul Add Out.
+
+`MakeFromZX` keeps Z fixed and orthogonalises X against it (`RotationMatrix.h:194-206`), so the upright-on-
+the-cylinder rotation survives and only the yaw changes. Inputs need not be normalised. Measured on 41
+buildings: facing error **median 0.92°, mean 1.25°, max 10.4°, 40/41 under 5°**; lean off local up **0.000°**;
+frontage band unchanged at 10.4-26.0 m.
+
+Two traps this cost a generate each:
+
+- **`Distance` with an unconnected `Target` pin silently passes its Source through** (`PCGDistance.cpp:148-153`)
+  — no warning, no attribute, and the failure only surfaces downstream as *"Attribute/Property 'RoadDir' from
+  pin X does not exist"* on the rotator. A red node is usually accusing something upstream.
+- **A fresh `Spline Sampler` defaults to Mode `Subdivision`, 1 per segment.** On a 2,287 m road with 5 control
+  points that is **9 sample points, 208-392 m apart**, so the nearest one sits far up or down the road and
+  `RoadDir` comes out pointing *along* it — measured facing error median **75°**. Proof it was the sampler and
+  not the maths: the buildings' forward vectors matched the direction to those 9 coarse points to within 8°.
+  Duplicating an existing sampler (Ctrl+W) instead of adding a new one carries the settings across.
+
+**Failed approach, do not repeat.** Projecting city points onto the road *spline* to inherit its rotation
+produces **zero output**: only point data, landscape, polygon2D and spline *interior surface* implement
+`ProjectPoint` — `PCGSplineData` does not, so the base implementation rejects every point (nothing overlaps a
+1-D curve). Superseded by the Distance-vector route above; do not spend time on the Bounds Modifier detour.
+
+### Lots (L3) — job 18, frontage-only, 2026-09-30
+
+Before this, "buildings line roads" was a **band filter**: terrain-scatter points that happened to land
+8-25 m from the road survived, so spacing along the street was random. L3 now *generates* the points from
+the road instead, which is what makes the result read as a street rather than scattered boxes.
+
+```
+Get Spline Data (tag Road) -> Spline Sampler   Mode Distance, increment 500, Compute Distance -> RoadDist
+  -> Add Attribute   Double Frontage = 2500
+  -> Modulo          In A RoadDist, In B Frontage (Input Source 2 = Frontage)  -> Slot
+  -> Point Filter    Slot Lesser than 250, constant threshold        one sample in five survives
+  -> Add Attribute   Double LotSize = 2000
+  -> Transform Points x2   Absolute Offset OFF, offset (0, +/-1200, 0)   left and right lot lines
+  -> Merge Points    -> the existing zone split -> density -> RoadDir -> rotator -> spawner
+```
+
+Two things make it work:
+
+- **The 5 m sampler is the quantum, the modulo is the spacing.** `Frontage` must be a multiple of the
+  sampler increment, and the filter threshold must be **half the increment** (250), so exactly one sample
+  per interval has a residue under it.
+- **`Absolute Offset` off rotates the offset into the point's own frame** (`PCGTransformPoints.cpp:211-215`),
+  and spline-sampled points carry the spline's rotation — so one number means "12 m to the left of the road"
+  no matter which way the road is heading. With it on you would get "+12 m in world Y" and the lots would
+  cross the carriageway on every bend.
+
+Measured after the switch: **50 buildings, 25 per side, 12.00-12.00 m from the road centreline, facing error
+0.00° median and max**, gaps along the road all multiples of 25 m (the long ones are the density cull).
+
+**The spacing is an attribute, not a node setting.** That is the whole point of routing the Modulo's In B
+through `Add Attribute` rather than typing 2500 into the pin: job 19 sets `Frontage` per zone with the same
+three-`Add Attribute` pattern as `Density`, and no node changes. Set `Input Source 2` explicitly to
+`Frontage` — `@Last` resolves to it today, but the next attribute written upstream would silently steal it.
+
+**Known gap:** lot points skip the `Mountain` / `Slope` gates. Those live on the terrain-scatter branch, and
+`SG_TerrainMasks` cannot be reused as-is because it reads `TexCoord[0]` off the sampled terrain mesh, which
+spline points do not have. In practice the road is hand-drawn through the valley so the lots inherit that
+judgement — but a road up a hillside would carry buildings with it.
 
 ### Zoning (L1) — job 8, checkpoint met 2026-09-24
 

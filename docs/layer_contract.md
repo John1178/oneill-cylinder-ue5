@@ -25,7 +25,7 @@ the contract first, not the graph.*
 
 | term | meaning |
 |---|---|
-| **Zone** | the *type* of place — Residential / Service / Industrial. Decides **which modules** may spawn. A label, not a space. |
+| **Zone** | the *type* of place — Residential / Service / Industrial / **Agriculture**. Decides **which content** belongs in a stretch (buildings, or crop rows for Agriculture). A label, not a space. |
 | **Density** | 0–1 survival chance per candidate point. Decides **how many** buildings. Not a count. |
 | **Scatter / Rows** | the one logic switch in the system: organic Poisson, or a regular grid for farm and orchard. |
 | **Road** | an artist-drawn spline (L2). Gives points `DistToRoad` and `RoadDir`. |

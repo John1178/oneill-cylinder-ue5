@@ -1,11 +1,11 @@
 # O'Neill Cylinder — Project Checklist
 
-*rev 24 · 2026-09-25 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
+*rev 27 · 2026-09-30 · one line per task.* Details live in **`ue_working_rules.md`** (how-to, traps,
 measurements) · **`project_log.md`** (decisions, history) · **`layer_contract.md`** (system design).
 
 > The one rolling checklist for the whole project. Corrections land here, nowhere else.
 
-**Open: 62 — Publish 1: 23 · Later: 39.** Updated Fri 25 Sep 2026.
+**Open: 58 — Publish 1: 20 · Later: 38.** Updated Wed 30 Sep 2026.
 
 **Two releases:** Publish 1 = the PCG tool (greybox), then apply. Later = colony polish; nothing in
 Later blocks Publish 1. Why: `project_log.md` → Split into two releases.
@@ -19,10 +19,10 @@ system runs end to end (job 15). Why: `project_log.md` → One belt first.
 |---|---|---|---|
 | 1 | ~~Swappable surface~~ | ✅ | closed Wed 9 |
 | **7d** | **Terrain on the belt** | 3 | **Week 5 — checkpoint Fri 18 Sep** |
-| 7 | Design leftovers — 7b-new · 7c | 2 | Week 6-7 |
+| 7 | Design leftovers — 7c | 1 | Week 7 |
 | 6 | ~~DataTable test edits -> xlsx~~ | ✅ | closed Thu 24 |
 | 8 | ~~Zoning~~ | ✅ | closed Thu 24 |
-| 16 | L1 Density | 3 | Week 6 |
+| 16 | L1 Density | 1 | Week 6-7 |
 | 17 | L2 Streets | 3 | Week 6-7 |
 | 18 | L3 Lots — frontage-only | 1 | Week 7 |
 | 19 | Presets | 2 | Week 7 |
@@ -82,7 +82,7 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 ## 7. Design leftovers
 
 - [x] ✅ Design block → `layer_contract.md`; 7a L3 frontage-only; 7b withdrawn → `project_log.md` → Schema meanings
-- [ ] ⬜ 7b-new. Agriculture belt: add an `Agriculture` zone, or drive it by `Category` `[Week 6 — before Zoning]`
+- [x] ✅ 7b-new. `Agriculture` added as a fourth `Zone` value (`VEG_007` crop rows); validator rule widened, 2026-09-28
 - [ ] ⬜ 7c. Clearance column — nothing reads it yet `[Week 7 — with L3 Lots]`
 - [x] ✅ 7e. `layer_contract.md` Open decision 2 corrected — Zone = building zoning (PCG reads it), Belt = quality tier (validator only), 2026-09-24
 
@@ -100,9 +100,8 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 
 ## 16. L1 Density `[Week 6]`
 
-- [ ] ⬜ Write `Density` (0-1) from the Gaea mask (7d.9)
-- [ ] ⬜ Threshold cull
-- [ ] ⬜ `Scatter` / `Rows` switch (Rows = farm, orchard)
+- [x] ✅ Write `Density` (0-1) — artist input, one value per zone (0.8 / 0.5 / 0.3), 2026-09-28
+- [x] ✅ Threshold cull — `Attribute Noise` → `Roll`, keep where `Roll` < `Density`; 143 → 83 points, within 2 of predicted
 - [x] ✅ Trees from the masks — treeline band + slope rule, 30,866 trees, 2026-09-22
 - *(the rest of the planting moved to Later → job V, 2026-09-24 — not needed for the tool demo)*
 
@@ -110,18 +109,21 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 
 - [x] ✅ Artist-drawn spline → `Get Spline Data` (tag `Road`) → `Spline Sampler`, 2026-09-25
 - [x] ✅ `DistToRoad` via the `Distance` node + 40 m frontage filter — 302 points line the road
-- [ ] ⬜ `RoadDir` — not written yet; needed for `RotationMode = AlignToRoad`
+- [x] ✅ `RoadDir` — 2nd `Distance` node (Output Distance Vector) → `Make Rot From ZX`; facing error median 0.92°, lean 0.00°, 2026-09-28
 - [ ] ⬜ Road mesh is a 1 m cube bar — author a road tile **with kerb + pavement** (~100 × 1200 × 20 cm, outer thirds raised) `[polish]`
 - [ ] ⬜ Road floats/sinks between control points — fix: Spline Sampler → `Projection` (target `World Ray Hit Query`) → `Create Spline` → Spawn Spline Mesh `[polish]`
 - [x] ✅ ~~Tile seam test~~ — withdrawn: `Spawn Spline Mesh` bends one mesh along the spline, no tiles, no seams
 
 ## 18. L3 Lots — frontage-only `[Week 7]`
 
-- [ ] ⬜ Buildings line roads via `DistToRoad`; emit `LotSize`, `Frontage`
+- [x] ✅ Lot line from the road spline — sample 5 m, keep 1 per `Frontage` (modulo), ±12 m setback; 50 buildings, 25/side, 12.00 m out, facing error 0.00°, 2026-09-30
+- [x] ✅ Emits `Frontage` (2500) + `LotSize` (2000); spacing is an attribute, so job 19 sets it per zone
+- [ ] ⬜ Lot points skip the `Mountain`/`Slope` gates — `SG_TerrainMasks` needs `TexCoord[0]`, which spline points lack. Decide: compute mask UV from position, or rely on the artist-drawn road
 
 ## 19. Presets `[Week 7]`
 
 - [ ] ⬜ City / Town / Farm / Factory / Countryside as data — filter + parameter set, no new logic
+- [ ] ⬜ `Scatter` / `Rows` switch (Rows = farm, orchard) — moved from job 16 2026-09-28: needs an `Agriculture` stretch to switch on
 - [ ] ⬜ Needs 7b-new first
 
 ## 20. Editor panel + reimport script `[Week 7]` *yours to write*
