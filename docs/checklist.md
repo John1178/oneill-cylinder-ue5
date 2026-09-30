@@ -122,9 +122,10 @@ Design: `layer_contract.md` → L0's surface · How + numbers: `ue_working_rules
 
 ## 19. Presets `[Week 7]`
 
-- [ ] ⬜ City / Town / Farm / Factory / Countryside as data — filter + parameter set, no new logic
+- [x] ✅ Knobs exposed as Graph Parameters — `Frontage` 2500, `LotSize` 2000, `Density` 0.8/0.5/0.3 via `Get Graph Parameter` → `Add Attribute [Attributes]`; verified on all 92 output points, 2026-09-30
+- [ ] ⬜ City / Town / Factory as data — a `presets` sheet + `DT_Presets`, applied as graph-instance overrides
+- [ ] ⬜ Farm / Countryside — need the `Rows` switch and a road-free path; park until the first three work
 - [ ] ⬜ `Scatter` / `Rows` switch (Rows = farm, orchard) — moved from job 16 2026-09-28: needs an `Agriculture` stretch to switch on
-- [ ] ⬜ Needs 7b-new first
 
 ## 20. Editor panel + reimport script `[Week 7]` *yours to write*
 
